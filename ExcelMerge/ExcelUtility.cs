@@ -57,12 +57,26 @@ namespace ExcelMerge
                 throw new ArgumentException("The specified Excel type and path extension do not match.");
 
             var workbook = CreateWorkbook(workbookType);
-            var sheet = workbook.CreateSheet();
-
-            using (var fileStream = new FileStream(path, FileMode.Create))
+            try
             {
-                workbook.Write(fileStream);
+                var sheet = workbook.CreateSheet();
+
+                using (var fileStream = new FileStream(path, FileMode.Create))
+                {
+                    workbook.Write(fileStream);
+                }
             }
+            finally
+            {
+                DisposeWorkbook(workbook);
+            }
+        }
+
+        internal static void DisposeWorkbook(IWorkbook workbook)
+        {
+            var disposable = workbook as IDisposable;
+            if (disposable != null)
+                disposable.Dispose();
         }
         private static IWorkbook CreateWorkbook(ExcelWorkbookType workbookType)
         {
@@ -120,7 +134,18 @@ namespace ExcelMerge
         {
             try
             {
-                return WorkbookFactory.Create(path) is HSSFWorkbook;
+                using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    var workbook = WorkbookFactory.Create(input);
+                    try
+                    {
+                        return workbook is HSSFWorkbook;
+                    }
+                    finally
+                    {
+                        DisposeWorkbook(workbook);
+                    }
+                }
             }
             catch
             {
@@ -132,7 +157,18 @@ namespace ExcelMerge
         {
             try
             {
-                return WorkbookFactory.Create(path) is XSSFWorkbook;
+                using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    var workbook = WorkbookFactory.Create(input);
+                    try
+                    {
+                        return workbook is XSSFWorkbook;
+                    }
+                    finally
+                    {
+                        DisposeWorkbook(workbook);
+                    }
+                }
             }
             catch
             {

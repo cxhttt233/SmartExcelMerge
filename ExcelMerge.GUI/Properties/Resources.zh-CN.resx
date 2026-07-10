@@ -223,19 +223,19 @@
     <value>工具</value>
   </data>
   <data name="ContextMenu_DiffAsHeader" xml:space="preserve">
-    <value>将此行的差异提取为列标题。</value>
+    <value>Diff As Column Header (以此行作为列标题重新比较)</value>
   </data>
   <data name="ContextMenu_SetRowHeader" xml:space="preserve">
-    <value>←设置行标题</value>
+    <value>←Set Row Header (设置行标题列)</value>
   </data>
   <data name="ContextMenu_ResetRowHeader" xml:space="preserve">
-    <value>←重置行标题</value>
+    <value>←Reset Row Header (重置行标题列)</value>
   </data>
   <data name="ContextMenu_SetColumnHeader" xml:space="preserve">
-    <value>↑设置列标题</value>
+    <value>↑Set Column Header (设置列标题行)</value>
   </data>
   <data name="ContextMenu_ResetColumnHeader" xml:space="preserve">
-    <value>↑重置列标题</value>
+    <value>↑Reset Column Header (重置列标题行)</value>
   </data>
   <data name="GroupBox_DisplayFormat" xml:space="preserve">
     <value>显示格式</value>
@@ -361,7 +361,7 @@
     <value>行标题名称</value>
   </data>
   <data name="ContextMenu_BuildCellBaseLog" xml:space="preserve">
-    <value>输出日志</value>
+    <value>Output Log (输出变更日志)</value>
   </data>
   <data name="ContextMenu_BuildColumnBaseLog" xml:space="preserve">
     <value>创建基于列的日志</value>
@@ -492,10 +492,10 @@
     <value>查看差异时自动聚焦于第一个差异</value>
   </data>
   <data name="ContextMenu_CopyAsCsv" xml:space="preserve">
-    <value>以CSV格式复制</value>
+    <value>Copy as CSV (复制为逗号分隔文本)</value>
   </data>
   <data name="ContextMenu_CopyAsTsv" xml:space="preserve">
-    <value>以TSV格式复制</value>
+    <value>Copy as TSV (复制为表格格式)</value>
   </data>
   <data name="Word_Chinese" xml:space="preserve">
     <value>中文</value>

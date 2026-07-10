@@ -191,6 +191,15 @@ ClientBin/
 node_modules/
 orleans.codegen.cs
 
+# Local ExcelMerge packages, P4V runtime data, and one-off investigation artifacts
+/app/
+/p4v-diff/
+/app.backup_*/
+/smart-diff-test/
+/sheet-switch-test/
+/wrapper-src/
+/docs/demo/*.inspect.ndjson
+
 # RIA/Silverlight projects
 Generated_Code/
 

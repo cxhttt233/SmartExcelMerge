@@ -21,12 +21,22 @@ namespace ExcelMerge
             if (Path.GetExtension(path) == ".tsv")
                 return CreateFromTsv(path, config);
 
-            var srcWb = WorkbookFactory.Create(path);
             var wb = new ExcelWorkbook();
-            for (int i = 0; i < srcWb.NumberOfSheets; i++)
+            using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
-                var srcSheet = srcWb.GetSheetAt(i);
-                wb.Sheets.Add(srcSheet.SheetName, ExcelSheet.Create(srcSheet, config));
+                var srcWb = WorkbookFactory.Create(input);
+                try
+                {
+                    for (int i = 0; i < srcWb.NumberOfSheets; i++)
+                    {
+                        var srcSheet = srcWb.GetSheetAt(i);
+                        wb.Sheets.Add(srcSheet.SheetName, ExcelSheet.Create(srcSheet, config));
+                    }
+                }
+                finally
+                {
+                    ExcelUtility.DisposeWorkbook(srcWb);
+                }
             }
 
             return wb;
@@ -36,18 +46,30 @@ namespace ExcelMerge
         {
             if (Path.GetExtension(path) == ".csv")
             {
-                yield return System.IO.Path.GetFileName(path);
+                return new[] { System.IO.Path.GetFileName(path) };
             }
-            else if (Path.GetExtension(path) == ".tsv")
+
+            if (Path.GetExtension(path) == ".tsv")
             {
-                yield return System.IO.Path.GetFileName(path);
+                return new[] { System.IO.Path.GetFileName(path) };
             }
-            else
+
+            var names = new List<string>();
+            using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
-                var wb = WorkbookFactory.Create(path);
-                for (int i = 0; i < wb.NumberOfSheets; i++)
-                    yield return wb.GetSheetAt(i).SheetName;
+                var wb = WorkbookFactory.Create(input);
+                try
+                {
+                    for (int i = 0; i < wb.NumberOfSheets; i++)
+                        names.Add(wb.GetSheetAt(i).SheetName);
+                }
+                finally
+                {
+                    ExcelUtility.DisposeWorkbook(wb);
+                }
             }
+
+            return names;
         }
 
         private static ExcelWorkbook CreateFromCsv(string path, ExcelSheetReadConfig config)

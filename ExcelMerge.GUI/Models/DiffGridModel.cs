@@ -9,6 +9,9 @@ namespace ExcelMerge.GUI.Models
 {
     public class DiffGridModel : FastGridModelBase
     {
+        private const string RemovedPlaceholderText = "///";
+
+        private readonly Action<int, int, string> setCellText;
         private int columnCount;
         private int rowCount;
         private Color? backgroundColor = null;
@@ -57,10 +60,16 @@ namespace ExcelMerge.GUI.Models
         public DiffType DiffType { get; private set; }
         public ExcelSheetDiff SheetDiff { get; private set; }
 
-        public DiffGridModel(ExcelSheetDiff sheetDiff, DiffType type) : base()
+        public bool IsEditable
+        {
+            get { return DiffType == DiffType.Dest && setCellText != null; }
+        }
+
+        public DiffGridModel(ExcelSheetDiff sheetDiff, DiffType type, Action<int, int, string> setCellText = null) : base()
         {
             DiffType = type;
             SheetDiff = sheetDiff;
+            this.setCellText = setCellText;
 
             columnCount = SheetDiff.Rows.Max(r => r.Value.Cells.Count);
             rowCount = SheetDiff.Rows.Count();
@@ -111,6 +120,65 @@ namespace ExcelMerge.GUI.Models
             return GetCellText(address.Row.Value, address.Column.Value, true);
         }
 
+        public override void SetCellText(int row, int column, string value)
+        {
+            int originalRow;
+            int originalColumn;
+            if (!TryGetEditableCellAddress(row, column, out originalRow, out originalColumn))
+                return;
+
+            setCellText(originalRow, originalColumn, value);
+        }
+
+        public bool TryGetEditableCellAddress(int row, int column, out int originalRow, out int originalColumn)
+        {
+            originalRow = -1;
+            originalColumn = -1;
+
+            if (!IsEditable)
+                return false;
+
+            ExcelCellDiff cellDiff;
+            if (!TryGetCellDiff(row, column, out cellDiff))
+                return false;
+
+            if (cellDiff.Status == ExcelCellStatus.Removed || IsRemovedPlaceholder(cellDiff))
+                return false;
+
+            if (cellDiff.DstCell == null)
+                return false;
+
+            originalRow = cellDiff.DstCell.OriginalRowIndex;
+            originalColumn = cellDiff.DstCell.OriginalColumnIndex;
+            return originalRow >= 0 && originalColumn >= 0;
+        }
+
+        public bool TryGetEditableRowAddress(int row, out int originalRow)
+        {
+            originalRow = -1;
+
+            if (!IsEditable)
+                return false;
+
+            ExcelRowDiff rowDiff;
+            if (!TryGetRowDiff(row, out rowDiff))
+                return false;
+
+            if (rowDiff.IsRemoved())
+                return false;
+
+            var cell = rowDiff.Cells.Values.FirstOrDefault(c =>
+                c.Status != ExcelCellStatus.Removed
+                && c.DstCell != null
+                && c.DstCell.OriginalRowIndex >= 0);
+
+            if (cell == null)
+                return false;
+
+            originalRow = cell.DstCell.OriginalRowIndex;
+            return true;
+        }
+
         private bool TryGetCellDiff(int row, int column, out ExcelCellDiff cellDiff, bool direct = false)
         {
             cellDiff = null;
@@ -132,6 +200,9 @@ namespace ExcelMerge.GUI.Models
 
         private string GetCellText(ExcelCellDiff cellDiff)
         {
+            if (IsRemovedPlaceholder(cellDiff))
+                return RemovedPlaceholderText;
+
             switch (cellDiff.Status)
             {
                 case ExcelCellStatus.None:
@@ -145,6 +216,13 @@ namespace ExcelMerge.GUI.Models
             }
 
             return string.Empty;
+        }
+
+        private bool IsRemovedPlaceholder(ExcelCellDiff cellDiff)
+        {
+            return cellDiff.Status == ExcelCellStatus.Removed
+                && DiffType == DiffType.Dest
+                && string.IsNullOrEmpty(cellDiff.DstCell.Value);
         }
 
         private Color? GetColor(ExcelCellStatus status)
@@ -205,6 +283,8 @@ namespace ExcelMerge.GUI.Models
                 return header;
 
             header.backgroundColor = App.Instance.Setting.RowHeaderColor;
+            header.decoration = CellDecoration.None;
+            header.decorationColor = null;
 
             return header;
         }
@@ -216,6 +296,8 @@ namespace ExcelMerge.GUI.Models
                 return header;
 
             header.backgroundColor = App.Instance.Setting.ColumnHeaderColor;
+            header.decoration = CellDecoration.None;
+            header.decorationColor = null;
 
             return header;
         }
@@ -230,21 +312,26 @@ namespace ExcelMerge.GUI.Models
 
             ExcelCellDiff cellDiff;
             var status = ExcelCellStatus.None;
+            var isRemovedPlaceholder = false;
             if (TryGetCellDiff(row, column, out cellDiff, direct))
             {
                 status = cellDiff.Status;
-                if (status == ExcelCellStatus.Added && DiffType == DiffType.Source)
-                    status = ExcelCellStatus.Removed;
-                else if (status == ExcelCellStatus.Removed && DiffType == DiffType.Source)
-                    status = ExcelCellStatus.Added;
+                isRemovedPlaceholder = IsRemovedPlaceholder(cellDiff);
             }
 
             cell.backgroundColor = null;
+            cell.decoration = CellDecoration.None;
+            cell.decorationColor = null;
 
             if (App.Instance.Setting.ColorModifiedRow && IsModifiedRow(row, true))
                 cell.backgroundColor = App.Instance.Setting.ModifiedRowColor;
 
             cell.backgroundColor = GetColor(status) ?? cell.backgroundColor;
+            if (isRemovedPlaceholder)
+            {
+                cell.decoration = CellDecoration.DiagonalSlash;
+                cell.decorationColor = Colors.DimGray;
+            }
 
             return cell;
         }
@@ -285,8 +372,8 @@ namespace ExcelMerge.GUI.Models
             return GetNextCell(realAddress, (row) => row + 1, (row, cells) =>
             {
                 var next = row == realAddress.Row
-                ? cells.Skip(realAddress.Column.Value + 1).FirstOrDefault(c => c.Value.Status != ExcelCellStatus.None)
-                : cells.FirstOrDefault(c => c.Value.Status != ExcelCellStatus.None);
+                ? cells.Skip(realAddress.Column.Value + 1).FirstOrDefault(c => c.Value.Status == ExcelCellStatus.Modified)
+                : cells.FirstOrDefault(c => c.Value.Status == ExcelCellStatus.Modified);
 
                 var address = next.Value != null ? new FastGridCellAddress(row, next.Key) : FastGridCellAddress.Empty;
 
@@ -300,8 +387,8 @@ namespace ExcelMerge.GUI.Models
             return GetNextCell(realAddress, (row) => row - 1, (row, cells) =>
             {
                 var next = row == realAddress.Row
-                    ? cells.Take(realAddress.Column.Value).LastOrDefault(c => c.Value.Status != ExcelCellStatus.None)
-                    : cells.LastOrDefault(c => c.Value.Status != ExcelCellStatus.None);
+                    ? cells.Take(realAddress.Column.Value).LastOrDefault(c => c.Value.Status == ExcelCellStatus.Modified)
+                    : cells.LastOrDefault(c => c.Value.Status == ExcelCellStatus.Modified);
 
                 var address = next.Value != null ? new FastGridCellAddress(row, next.Key) : FastGridCellAddress.Empty;
 
@@ -317,7 +404,8 @@ namespace ExcelMerge.GUI.Models
                 if (row == realAddress.Row)
                     return FastGridCellAddress.Empty;
 
-                if (cells.Any(c => c.Value.Status != ExcelCellStatus.None))
+                ExcelRowDiff rowDiff;
+                if (TryGetRowDiff(row, out rowDiff, false) && rowDiff.IsModified())
                     return GetVisualCellAddress(new FastGridCellAddress(row, realAddress.Column));
 
                 return FastGridCellAddress.Empty;
@@ -332,7 +420,8 @@ namespace ExcelMerge.GUI.Models
                 if (row == realAddress.Row)
                     return FastGridCellAddress.Empty;
 
-                if (cells.Any(c => c.Value.Status != ExcelCellStatus.None))
+                ExcelRowDiff rowDiff;
+                if (TryGetRowDiff(row, out rowDiff, false) && rowDiff.IsModified())
                     return GetVisualCellAddress(new FastGridCellAddress(row, realAddress.Column));
 
                 return FastGridCellAddress.Empty;
@@ -347,7 +436,8 @@ namespace ExcelMerge.GUI.Models
                 if (row == realAddress.Row)
                     return FastGridCellAddress.Empty;
 
-                if (cells.All(c => c.Value.Status == ExcelCellStatus.Added))
+                ExcelRowDiff rowDiff;
+                if (TryGetRowDiff(row, out rowDiff, false) && rowDiff.IsAdded())
                     return GetVisualCellAddress(new FastGridCellAddress(row, realAddress.Column));
 
                 return FastGridCellAddress.Empty;
@@ -362,7 +452,8 @@ namespace ExcelMerge.GUI.Models
                 if (row == realAddress.Row)
                     return FastGridCellAddress.Empty;
 
-                if (cells.All(c => c.Value.Status == ExcelCellStatus.Added))
+                ExcelRowDiff rowDiff;
+                if (TryGetRowDiff(row, out rowDiff, false) && rowDiff.IsAdded())
                     return GetVisualCellAddress(new FastGridCellAddress(row, realAddress.Column));
 
                 return FastGridCellAddress.Empty;
@@ -377,7 +468,8 @@ namespace ExcelMerge.GUI.Models
                 if (row == realAddress.Row)
                     return FastGridCellAddress.Empty;
 
-                if (cells.All(c => c.Value.Status == ExcelCellStatus.Removed))
+                ExcelRowDiff rowDiff;
+                if (TryGetRowDiff(row, out rowDiff, false) && rowDiff.IsRemoved())
                     return GetVisualCellAddress(new FastGridCellAddress(row, realAddress.Column));
 
                 return FastGridCellAddress.Empty;
@@ -392,7 +484,8 @@ namespace ExcelMerge.GUI.Models
                 if (row == realAddress.Row)
                     return FastGridCellAddress.Empty;
 
-                if (cells.All(c => c.Value.Status == ExcelCellStatus.Removed))
+                ExcelRowDiff rowDiff;
+                if (TryGetRowDiff(row, out rowDiff, false) && rowDiff.IsRemoved())
                     return GetVisualCellAddress(new FastGridCellAddress(row, realAddress.Column));
 
                 return FastGridCellAddress.Empty;

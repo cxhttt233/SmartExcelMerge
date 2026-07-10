@@ -14,6 +14,7 @@ namespace ExcelMerge.GUI.Settings
         public static readonly string Location =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "ExcelMerge", "ExcelMerge.yml");
+        private const string PreviousRedRemovedColorString = "#FFFFC7CE";
 
         private bool skipFirstBlankRows;
         public bool SkipFirstBlankRows
@@ -62,6 +63,13 @@ namespace ExcelMerge.GUI.Settings
         {
             get { return focusFirstDiff; }
             set { SetProperty(ref focusFirstDiff, value); }
+        }
+
+        private bool useSmartTableDiff = true;
+        public bool UseSmartTableDiff
+        {
+            get { return useSmartTableDiff; }
+            set { SetProperty(ref useSmartTableDiff, value); }
         }
 
         private ObservableCollection<string> alternatingColorStrings = new ObservableCollection<string>
@@ -298,25 +306,45 @@ namespace ExcelMerge.GUI.Settings
 
             if (string.IsNullOrEmpty(AddedColorString))
             {
-                AddedColorString = EMColor.Orange.ToString();
+                AddedColorString = EMColor.DiffAdded.ToString();
+                isChanged |= true;
+            }
+            else if (AddedColorString == EMColor.Orange.ToString())
+            {
+                AddedColorString = EMColor.DiffAdded.ToString();
                 isChanged |= true;
             }
 
             if (string.IsNullOrEmpty(RemovedColorString))
             {
-                RemovedColorString = EMColor.LightGray.ToString();
+                RemovedColorString = EMColor.DiffRemoved.ToString();
+                isChanged |= true;
+            }
+            else if (RemovedColorString == PreviousRedRemovedColorString)
+            {
+                RemovedColorString = EMColor.DiffRemoved.ToString();
                 isChanged |= true;
             }
 
             if (string.IsNullOrEmpty(ModifiedColorString))
             {
-                ModifiedColorString = EMColor.Orange.ToString();
+                ModifiedColorString = EMColor.DiffModified.ToString();
+                isChanged |= true;
+            }
+            else if (ModifiedColorString == EMColor.Orange.ToString())
+            {
+                ModifiedColorString = EMColor.DiffModified.ToString();
                 isChanged |= true;
             }
 
             if (string.IsNullOrEmpty(ModifiedRowColorString))
             {
-                ModifiedRowColorString = EMColor.PaleOrange.ToString();
+                ModifiedRowColorString = EMColor.DiffModifiedRow.ToString();
+                isChanged |= true;
+            }
+            else if (ModifiedRowColorString == EMColor.PaleOrange.ToString())
+            {
+                ModifiedRowColorString = EMColor.DiffModifiedRow.ToString();
                 isChanged |= true;
             }
 

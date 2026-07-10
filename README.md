@@ -1,165 +1,88 @@
-- [English](https://github.com/skanmera/ExcelMerge/blob/master/README.md)
-- [日本語](https://github.com/skanmera/ExcelMerge/blob/master/README.jp.md)
+# SmartExcelMerge
 
+SmartExcelMerge is a Windows spreadsheet diff tool based on [skanmera/ExcelMerge](https://github.com/skanmera/ExcelMerge). It keeps the lightweight Excel/CSV grid viewer and adds a table-aware diff model, code-diff-style insert/delete presentation, destination-side editing, and P4V integration.
 
-![](https://github.com/skanmera/ExcelMerge/blob/media/media/logo.png)
+## What Changed
 
-### GUI Diff Tool for Excel
+### Smart Table Diff
 
-![Demo](https://github.com/skanmera/ExcelMerge/blob/media/media/demo.gif)
+- Aligns columns by unique headers, then uses anchored matching and bounded fallback matching for ambiguous headers.
+- Aligns rows by a configured row key or an auto-detected ID/key/number-like column. Moving a keyed row does not become a delete plus add.
+- Shows real insertions, removals, and modified cells instead of marking all trailing cells as modified after a row or column insertion.
+- Reports added and removed column counts separately from modified rows and cells.
+- Uses a bounded fallback path for large tables without reliable anchors, avoiding unbounded similarity work.
 
-![](https://github.com/skanmera/ExcelMerge/blob/media/media/cell_diff.png)
+### Code-Diff-Style Presentation
 
-## Description
+| Visual | Meaning |
+| --- | --- |
+| Green | Added row or column content |
+| Gray with `///` hatch | Removed row or column placeholder |
+| Yellow | A cell value was modified |
 
-ExcelMerge is a graphical display tool for Excel or CSV Diff.
-The current feature is limited only to the display of Diff, but the goal is to implement the merge feature.
-It can also be used as a diff tool for Git or Mercurial.
+![Smart diff overview](docs/images/smart-diff-overview.png)
 
-## System Requirements
+The screenshot was produced from the public fixtures in [`docs/demo`](docs/demo): one added row, one removed row, one added column, one removed column, and one modified cell. The `ID=1005` record is also reordered to verify that a keyed row move is not treated as a remove/add pair.
 
-- Windows 7 or later
+### Edit the Destination Side
 
-## Supported file types
+The right-hand sheet can be edited when launched with a writable destination:
 
-- .xls
-- .xlsx
-- .csv
-- .tsv
+- Edit or clear cells, paste rectangular TSV data, then save with `Ctrl+S` or `Save`.
+- Copy selected cells as TSV/CSV.
+- Copy a complete source row, insert blank rows above or below, insert the copied row below the selection, or delete selected destination rows.
+- Save writes back to the original destination file after creating a local backup; discard restores the working copy.
 
-## Installation
+![Destination edit commands](docs/images/destination-edit-menu.png)
 
-Download ExcelMergeSetup.msi from [here](https://github.com/skanmera/ExcelMerge/releases/) and Run.
+## Build
 
-## Usage
+Requirements:
 
-### From shortcut
+- Windows
+- Visual Studio 2022 or MSBuild with .NET Framework 4.8 targeting packs
 
-![](https://github.com/skanmera/ExcelMerge/blob/media/media/shortcut.png)
-
-### From exproler context menu
-
-![](https://github.com/skanmera/ExcelMerge/blob/media/media/context.png)
-
-### From command line
-
-```
-ExcelMerge.GUI diff [Options]
-```
-
-|Option|Description|Type|Default|
-|------|-----------|----|-------|
-|```-s``` ```--src-path```|Source file path.|string|
-|```-d``` ```--dst-path``` |Dest file path.| string
-|```-c``` ```--external-cmd```|It is used to activate other tools for unsupported file types and occured any exception.| string
-|```-i``` ```--immediately-execute-external-cmd```|Execute external cmd without error dialog.| bool | false
-|```-w``` ```--wait-external-cmd```|Wait for the external process to finish.|bool|false
-|```-v``` ```--validate-extension```|Validate extension before open file.|bool|false
-|```-e``` ```--empty-file-name```|Empty file name.|string
-|```-k``` ```--keep-file-history```|Don't add recent files.|bool|false
-
-### From Git diff tool
-
-.gitconfig
-```
-[diff]
-tool = ExcelMerge
-
-[difftool "ExcelMerge"]
-cmd = \"C:/Program Files (x86)/ExcelMerge/ExcelMerge.GUI.exe\" diff -s \"$LOCAL\" -d \"$REMOTE\" -c WinMerge -i -w -v -k 
-
-[alias]
-windiff = difftool -g -y -t ExcelMerge
+```powershell
+& "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" `
+  "ExcelMerge.GUI\ExcelMerge.GUI.csproj" `
+  /p:Configuration=Release /p:Platform=AnyCPU
 ```
 
-### From Mercurial diff tool
+The GUI output is written to `ExcelMerge.GUI\bin\Release\ExcelMerge.GUI.exe`.
 
-mercurial.ini
+## P4V Integration
+
+The source for the P4V launcher is in [`tools/P4VWrapper`](tools/P4VWrapper). Build it with:
+
+```powershell
+& "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" `
+  "tools\P4VWrapper\ExcelMergeP4VDiff.csproj" `
+  /p:Configuration=Release
 ```
-[merge-tools]
-excelmerge.executable = C:\Program Files (x86)\ExcelMerge\ExcelMerge.GUI.exe
-excelmerge.diffargs = diff -s $parent1 -d $child -c WinMerge -i -w -v -e empty -k
 
-[tortoisehg]
-vdiff = excelmerge
+Place the built files in this layout:
+
+```text
+excel-smart-diff/
+  app/ExcelMerge.GUI.exe
+  p4v-diff/ExcelMergeP4VDiff.exe
 ```
 
-## Register External Command
-Register the external command specified by the command line argument --external-cmd.
+In P4V, associate `xls`, `xlsx`, `xlsm`, `csv`, and `tsv` with `p4v-diff/ExcelMergeP4VDiff.exe` using these arguments:
 
-![](https://github.com/skanmera/ExcelMerge/blob/media/media/ext_cmd_win.png)
+```text
+%1 %2 --open
+```
 
-### Available Variables
-|Value|Description|
-|------|----------|
-|```${SRC}```|Source file path|
-|```${DST}```|Dest file path|  
-  
-  
-Can also be executed from within the tool.
+The wrapper copies P4V's short-lived diff files to `%LOCALAPPDATA%\ExcelSmartDiff\p4v-diff\cache`, removes cache folders older than three days, and limits retained cache sessions. It launches editable diffs for `.xls` and `.xlsx` destination files.
 
-![](https://github.com/skanmera/ExcelMerge/blob/media/media/ext_cmd.png)
+## Test Fixtures
 
-## File Settings
+- [`smart-diff-before.xlsx`](docs/demo/smart-diff-before.xlsx)
+- [`smart-diff-after.xlsx`](docs/demo/smart-diff-after.xlsx)
 
-For each file you can specify a line header or a column header.
+Run the GUI with these files to reproduce the screenshot and expected summary: `Modified Cells(1)`, `Modified Rows(1)`, `Added Rows(1)`, `Removed Rows(1)`, `Added Columns(1)`, and `Removed Columns(1)`.
 
-![](https://github.com/skanmera/ExcelMerge/blob/media/media/file_settings.png)
+## Upstream and License
 
-## Color Settings
-
-You can customize background colors.
-
-![](https://github.com/skanmera/ExcelMerge/blob/media/media/settings.png)
-
-
-## Shortcut Keys
-
-|Shortcut Key|Description|
-|---|-----------|
-|Ctrl + →|Next modified cell|
-|Ctrl + ←|Previous modified cell|
-|Ctrl + ↓|Next modified row|
-|Ctrl + ↑|Previous modified row|
-|Ctrl + K|Next added row|
-|Ctrl + I|Previous added row|
-|Ctrl + L|Next removed row|
-|Ctrl + O|Previous removed row|
-|Ctrl + F|Search cell|
-|F9|Next match cell|
-|F8|Previous match cell|
-|Ctrl + C|Copy selected cells as TSV|
-|Ctrl + Shift + C|Copy selected cells as CSV|
-|Ctrl + D|Show(Hide) console|
-|Ctrl + B|Output selected cells diff as log|
-
-
-## Output diff as log
-
-By selecting Ctrl + D or "Output log" from the context menu, you can output the change as a log.
-The format can be changed from "differential extraction setting".
-
-![](https://github.com/skanmera/ExcelMerge/blob/media/media/log.png)
-
-
-## Known problems
-
-- <h4>If there are column deletions or additions, they may not be displayed at the expected position.</h4>
-If the currently displayed header is not what you expect, you may resolve it by specifying the appropriate header and extract diff.
-Follow these steps.
-1. Select appropriate header cell.
-2. Right click to display the context menu.
-3. Select "Extract diff with this row as header"
-
-
-## LICENSE
-
-#### MIT Licence
-
-Copyright (c)2017 skanmera
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+This is a fork-derived project. It retains the original ExcelMerge copyright notice and is distributed under the [MIT License](LICENSE). It is not affiliated with the upstream author.

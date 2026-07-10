@@ -76,6 +76,7 @@
               <ComboBox x:Name="SrcSheetCombobox" Margin="0,0,5,0" Width="100"
                         ItemsSource="{Binding SrcSheetNames}"
                         SelectedIndex="{Binding SelectedSrcSheetIndex}"
+                        SelectionChanged="SheetCombobox_SelectionChanged"
                         />
             </StackPanel>
           </GroupBox>
@@ -97,7 +98,8 @@
               <Label Content="{x:Static props:Resources.Word_Sheet}"/>
               <ComboBox x:Name="DstSheetCombobox" Margin="5,0,0,0" Width="100"
                         ItemsSource="{Binding DstSheetNames}"
-                        SelectedIndex="{Binding SelectedDstSheetIndex}"/>
+                        SelectedIndex="{Binding SelectedDstSheetIndex}"
+                        SelectionChanged="SheetCombobox_SelectionChanged"/>
             </StackPanel>
           </GroupBox>
 
@@ -111,10 +113,12 @@
               <ColumnDefinition Width="*"/>
               <ColumnDefinition Width="*"/>
               <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <Border BorderThickness="0.2" BorderBrush="Gray"
-                    Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Grid.ColumnSpan="4"/>
+                    Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Grid.ColumnSpan="6"/>
 
             <Label Content="{Binding ModifiedCellCount}" ContentStringFormat="{x:Static props:Resources.Label_ModifiedCells}"
                    Grid.Row="0" Grid.Column="0"
@@ -147,6 +151,22 @@
 
             <Border BorderThickness="0.2" BorderBrush="Gray"
                     Grid.Row="0" Grid.Column="3"/>
+
+            <Label Content="{Binding AddedColumnCount}" ContentStringFormat="Added Columns({0})"
+                   Grid.Row="0" Grid.Column="4"
+                   HorizontalAlignment="Center"
+                   />
+
+            <Border BorderThickness="0.2" BorderBrush="Gray"
+                    Grid.Row="0" Grid.Column="4"/>
+
+            <Label Content="{Binding RemovedColumnCount}" ContentStringFormat="Removed Columns({0})"
+                   Grid.Row="0" Grid.Column="5"
+                   HorizontalAlignment="Center"
+                   />
+
+            <Border BorderThickness="0.2" BorderBrush="Gray"
+                    Grid.Row="0" Grid.Column="5"/>
 
             <Grid Grid.Row="1" Grid.Column="0">
               <Grid.ColumnDefinitions>
@@ -219,8 +239,25 @@
 
             <Border BorderThickness="0.2" BorderBrush="Gray"
                     Grid.Row="1" Grid.Column="3"/>
+
+            <Border BorderThickness="0.2" BorderBrush="Gray"
+                    Grid.Row="1" Grid.Column="4"/>
+
+            <Border BorderThickness="0.2" BorderBrush="Gray"
+                    Grid.Row="1" Grid.Column="5"/>
           </Grid>
 
+          <GroupBox Header="Edit Dst (编辑右侧表格)" Margin="10,0,0,0">
+            <StackPanel Orientation="Horizontal">
+              <Label Content="{Binding EditStatusText}" Margin="3" VerticalAlignment="Center"/>
+              <Button x:Name="SaveDstEditButton" Content="Save (保存修改)" Margin="3" Padding="5,2"
+                      Click="SaveDstEditButton_Click"
+                      IsEnabled="{Binding HasUnsavedEdits}"/>
+              <Button x:Name="DiscardDstEditButton" Content="Discard (放弃修改)" Margin="3" Padding="5,2"
+                      Click="DiscardDstEditButton_Click"
+                      IsEnabled="{Binding HasUnsavedEdits}"/>
+            </StackPanel>
+          </GroupBox>
 
         </WrapPanel>
       </Expander.Header>
@@ -310,6 +347,8 @@
           <MenuItem Header="{x:Static props:Resources.ContextMenu_BuildCellBaseLog}" Click="BuildCellBaseLog_Click"/>
           <MenuItem Header="{x:Static props:Resources.ContextMenu_CopyAsTsv}" Click="CopyAsTsv_Click" InputGestureText="Ctrl + c"/>
           <MenuItem Header="{x:Static props:Resources.ContextMenu_CopyAsCsv}" Click="CopyAsCsv_Click" InputGestureText="Ctrl + C"/>
+          <Separator/>
+          <MenuItem Header="Copy Row as TSV (复制整行)" Click="CopySrcRowsAsTsv_Click"/>
         </ContextMenu>
       </fg:FastGridControl.ContextMenu>
 
@@ -352,6 +391,12 @@
           <MenuItem Header="{x:Static props:Resources.ContextMenu_BuildCellBaseLog}" Click="BuildCellBaseLog_Click"/>
           <MenuItem Header="{x:Static props:Resources.ContextMenu_CopyAsTsv}" Click="CopyAsTsv_Click" InputGestureText="Ctrl + c"/>
           <MenuItem Header="{x:Static props:Resources.ContextMenu_CopyAsCsv}" Click="CopyAsCsv_Click" InputGestureText="Ctrl + C"/>
+          <Separator/>
+          <MenuItem Header="Copy Row as TSV (复制整行)" Click="CopyDstRowsAsTsv_Click"/>
+          <MenuItem Header="Insert Row Above (上方插入空行)" Click="InsertDstRowAbove_Click"/>
+          <MenuItem Header="Insert Row Below (下方插入空行)" Click="InsertDstRowBelow_Click"/>
+          <MenuItem Header="Insert Copied Rows Below (下方插入粘贴复制行)" Click="InsertCopiedRowsBelow_Click"/>
+          <MenuItem Header="Delete Row (删除行)" Click="DeleteDstRow_Click"/>
           <!--<MenuItem Header="{x:Static props:Resources.ContextMenu_BuildRowBaseLog}" Click="BuildRowBaseLog_Click"/>
                     <MenuItem Header="{x:Static props:Resources.ContextMenu_BuildColumnBaseLog}" Click="BuildColumnBaseLog_Click"/>-->
         </ContextMenu>

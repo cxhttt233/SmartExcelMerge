@@ -223,19 +223,19 @@
     <value>Tool</value>
   </data>
   <data name="ContextMenu_DiffAsHeader" xml:space="preserve">
-    <value>Extract diff with this row as column header.</value>
+    <value>Diff As Column Header (以此行作为列标题重新比较)</value>
   </data>
   <data name="ContextMenu_SetRowHeader" xml:space="preserve">
-    <value>←Set Row Header</value>
+    <value>←Set Row Header (设置行标题列)</value>
   </data>
   <data name="ContextMenu_ResetRowHeader" xml:space="preserve">
-    <value>←Reset Row Header</value>
+    <value>←Reset Row Header (重置行标题列)</value>
   </data>
   <data name="ContextMenu_SetColumnHeader" xml:space="preserve">
-    <value>↑Set Column Header</value>
+    <value>↑Set Column Header (设置列标题行)</value>
   </data>
   <data name="ContextMenu_ResetColumnHeader" xml:space="preserve">
-    <value>↑Reset Column Header</value>
+    <value>↑Reset Column Header (重置列标题行)</value>
   </data>
   <data name="GroupBox_DisplayFormat" xml:space="preserve">
     <value>Display Format</value>
@@ -361,7 +361,7 @@
     <value>Row Header Name</value>
   </data>
   <data name="ContextMenu_BuildCellBaseLog" xml:space="preserve">
-    <value>Output Log</value>
+    <value>Output Log (输出变更日志)</value>
   </data>
   <data name="ContextMenu_BuildColumnBaseLog" xml:space="preserve">
     <value>Build Column Base Log</value>
@@ -492,9 +492,9 @@ If you don't want to apply file settings, enable "Ignore File Setting".</value>
     <value>Focus first diff when extracted</value>
   </data>
   <data name="ContextMenu_CopyAsCsv" xml:space="preserve">
-    <value>Copy as CSV</value>
+    <value>Copy as CSV (复制为逗号分隔文本)</value>
   </data>
   <data name="ContextMenu_CopyAsTsv" xml:space="preserve">
-    <value>Copy as TSV</value>
+    <value>Copy as TSV (复制为表格格式)</value>
   </data>
 </root>

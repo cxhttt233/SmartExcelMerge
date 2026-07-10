@@ -7,7 +7,7 @@ using SKCore.Collection;
 
 namespace ExcelMerge
 {
-    public class ExcelSheet
+    public partial class ExcelSheet
     {
         public SortedDictionary<int, ExcelRow> Rows { get; private set; }
 
@@ -122,6 +122,16 @@ namespace ExcelMerge
 
         public static ExcelSheetDiff Diff(ExcelSheet src, ExcelSheet dst, ExcelSheetDiffConfig config)
         {
+            config = config ?? new ExcelSheetDiffConfig();
+
+            if (config.UseSmartTableDiff)
+                return SmartDiff(src, dst, config);
+
+            return DiffLegacy(src, dst, config);
+        }
+
+        private static ExcelSheetDiff DiffLegacy(ExcelSheet src, ExcelSheet dst, ExcelSheetDiffConfig config)
+        {
             var srcColumns = src.CreateColumns();
             var dstColumns = dst.CreateColumns();
             var columnStatusMap = CreateColumnStatusMap(srcColumns, dstColumns, config);
@@ -185,6 +195,9 @@ namespace ExcelMerge
             }
 
             var sheetDiff = new ExcelSheetDiff();
+            foreach (var column in columnStatusMap)
+                sheetDiff.Columns[column.Key] = column.Value;
+
             DiffCells(resultArray, sheetDiff, columnStatusMap);
 
             return sheetDiff;

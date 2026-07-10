@@ -11,5 +11,9 @@ namespace ExcelMerge.GUI.Styles
         public static readonly Color LightGray = Color.FromRgb(200, 200, 200);
         public static readonly Color LightPink = Color.FromRgb(255, 230, 230);
         public static readonly Color LightBlue = Color.FromRgb(221, 233, 247);
+        public static readonly Color DiffAdded = Color.FromRgb(198, 239, 206);
+        public static readonly Color DiffRemoved = Color.FromRgb(200, 200, 200);
+        public static readonly Color DiffModified = Color.FromRgb(255, 217, 102);
+        public static readonly Color DiffModifiedRow = Color.FromRgb(255, 242, 204);
     }
 }

@@ -127,6 +127,19 @@
                         IsChecked="{Binding Setting.FocusFirstDiff}"/>
             </Grid>
 
+            <Grid Margin="3">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="30*"/>
+                <ColumnDefinition Width="70*"/>
+              </Grid.ColumnDefinitions>
+              <Label Grid.Column="0"
+                     VerticalAlignment="Center"
+                     Content="Smart Table Diff"/>
+              <CheckBox Grid.Column="1"
+                        VerticalAlignment="Center"
+                        IsChecked="{Binding Setting.UseSmartTableDiff}"/>
+            </Grid>
+
           </StackPanel>
         </GroupBox>
 

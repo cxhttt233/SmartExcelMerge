@@ -8,6 +8,7 @@ using Prism.Mvvm;
 using FastWpfGrid;
 using ExcelMerge.GUI.Settings;
 using ExcelMerge.GUI.Behaviors;
+using ExcelMerge.GUI.Commands;
 
 namespace ExcelMerge.GUI.ViewModels
 {
@@ -79,6 +80,65 @@ namespace ExcelMerge.GUI.ViewModels
             private set { SetProperty(ref executable, value); }
         }
 
+        private string dstEditPath;
+        public string DstEditPath
+        {
+            get { return dstEditPath; }
+            private set { SetProperty(ref dstEditPath, value); }
+        }
+
+        private string dstEditWorkingPath;
+        public string DstEditWorkingPath
+        {
+            get { return dstEditWorkingPath; }
+            private set { SetProperty(ref dstEditWorkingPath, value); }
+        }
+
+        private bool dstEditingEnabled;
+        public bool DstEditingEnabled
+        {
+            get { return dstEditingEnabled; }
+            private set
+            {
+                if (SetProperty(ref dstEditingEnabled, value))
+                    RaisePropertyChanged(nameof(IsDstReadOnly));
+            }
+        }
+
+        public bool IsDstReadOnly
+        {
+            get { return !DstEditingEnabled; }
+        }
+
+        private bool hasUnsavedEdits;
+        public bool HasUnsavedEdits
+        {
+            get { return hasUnsavedEdits; }
+            private set
+            {
+                if (SetProperty(ref hasUnsavedEdits, value))
+                    RaisePropertyChanged(nameof(EditStatusText));
+            }
+        }
+
+        private string lastEditBackupPath;
+        public string LastEditBackupPath
+        {
+            get { return lastEditBackupPath; }
+            private set { SetProperty(ref lastEditBackupPath, value); }
+        }
+
+        public string EditStatusText
+        {
+            get
+            {
+                if (!DstEditingEnabled)
+                    return "Read only";
+
+                return HasUnsavedEdits ? "Dst edited" : "Dst editable";
+            }
+        }
+
         private int modifiedCellCount;
         public int ModifiedCellCount
         {
@@ -107,6 +167,20 @@ namespace ExcelMerge.GUI.ViewModels
             private set { SetProperty(ref removedRowCount, value); }
         }
 
+        private int addedColumnCount;
+        public int AddedColumnCount
+        {
+            get { return addedColumnCount; }
+            private set { SetProperty(ref addedColumnCount, value); }
+        }
+
+        private int removedColumnCount;
+        public int RemovedColumnCount
+        {
+            get { return removedColumnCount; }
+            private set { SetProperty(ref removedColumnCount, value); }
+        }
+
         private DragAcceptDescription description;
         public DragAcceptDescription Description
         {
@@ -132,12 +206,38 @@ namespace ExcelMerge.GUI.ViewModels
             mwv.PropertyChanged += Mwv_PropertyChanged;
         }
 
+        public DiffViewModel(CommandLineOption option, MainWindowViewModel mwv)
+            : this(option.SrcPath, option.DstPath, mwv)
+        {
+            DstEditPath = option.DstEditPath;
+            DstEditWorkingPath = option.DstPath;
+            DstEditingEnabled = option.IsDstEditable && File.Exists(DstEditPath) && ExcelWorkbookEditor.IsEditableWorkbook(DstPath);
+        }
+
         public void UpdateDiffSummary(ExcelSheetDiffSummary summary)
         {
             ModifiedCellCount = summary.ModifiedCellCount;
             ModifiedRowCount = summary.ModifiedRowCount;
             AddedRowCount = summary.AddedRowCount;
             RemovedRowCount = summary.RemovedRowCount;
+            AddedColumnCount = summary.AddedColumnCount;
+            RemovedColumnCount = summary.RemovedColumnCount;
+        }
+
+        public void MarkEdited()
+        {
+            HasUnsavedEdits = true;
+        }
+
+        public void MarkSaved(string backupPath)
+        {
+            LastEditBackupPath = backupPath;
+            HasUnsavedEdits = false;
+        }
+
+        public void MarkDiscarded()
+        {
+            HasUnsavedEdits = false;
         }
 
         private void Mwv_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)

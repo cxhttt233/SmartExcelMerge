@@ -11,6 +11,7 @@ namespace FastWpfGrid
     {
         None,
         StrikeOutHorizontal,
+        DiagonalSlash,
     }
 
     public enum TooltipVisibilityMode

@@ -341,6 +341,38 @@ namespace FastWpfGrid
                 case CellDecoration.StrikeOutHorizontal:
                     _drawBuffer.DrawLine(rect.Left, rect.Top + rect.Height/2, rect.Right, rect.Top + rect.Height/2, cell.DecorationColor ?? Colors.Black);
                     break;
+                case CellDecoration.DiagonalSlash:
+                    var slashColor = cell.DecorationColor ?? Colors.Black;
+                    var left = rect.Left + 1;
+                    var top = rect.Top + 1;
+                    var right = rect.Right - 2;
+                    var bottom = rect.Bottom - 2;
+                    var height = bottom - top;
+                    var step = Math.Max(6, height / 2);
+                    for (var x = left - height; x <= right; x += step)
+                    {
+                        var x1 = x;
+                        var y1 = bottom;
+                        var x2 = x + height;
+                        var y2 = top;
+                        if (x1 < left)
+                        {
+                            var delta = left - x1;
+                            x1 = left;
+                            y1 -= delta;
+                        }
+
+                        if (x2 > right)
+                        {
+                            var delta = x2 - right;
+                            x2 = right;
+                            y2 += delta;
+                        }
+
+                        if (x1 <= right && x2 >= left && y1 >= top && y2 <= bottom)
+                            _drawBuffer.DrawLine(x1, y1, x2, y2, slashColor);
+                    }
+                    break;
             }
             if (isHoverCell)
             {

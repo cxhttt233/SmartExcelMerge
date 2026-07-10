@@ -35,6 +35,21 @@ namespace ExcelMerge.GUI.Commands
         [Option('k', "keep-file-history")]
         public bool KeepFileHistory { get; set; }
 
+        [Option("dst-edit-path")]
+        public string DstEditPath { get; set; } = string.Empty;
+
+        [Option("editable-side")]
+        public string EditableSide { get; set; } = string.Empty;
+
+        public bool IsDstEditable
+        {
+            get
+            {
+                return string.Equals(EditableSide, "dst", StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrEmpty(DstEditPath);
+            }
+        }
+
 
         public CommandType MainCommand
         {
@@ -48,6 +63,7 @@ namespace ExcelMerge.GUI.Commands
         {
             SrcPath = !string.IsNullOrEmpty(SrcPath) ? Path.GetFullPath(SrcPath) : SrcPath;
             DstPath = !string.IsNullOrEmpty(DstPath) ? Path.GetFullPath(DstPath) : DstPath;
+            DstEditPath = !string.IsNullOrEmpty(DstEditPath) ? Path.GetFullPath(DstEditPath) : DstEditPath;
         }
     }
 }
