@@ -45,15 +45,15 @@ namespace ExcelMerge.GUI.ViewModels
             }
         }
 
-        private List<string> srcSheetNames;
-        public List<string> SrcSheetNames
+        private List<SheetSelectionItem> srcSheetNames;
+        public List<SheetSelectionItem> SrcSheetNames
         {
             get { return srcSheetNames; }
             private set { SetProperty(ref srcSheetNames, value); }
         }
 
-        private List<string> dstSheetNames;
-        public List<string> DstSheetNames
+        private List<SheetSelectionItem> dstSheetNames;
+        public List<SheetSelectionItem> DstSheetNames
         {
             get { return dstSheetNames; }
             private set { SetProperty(ref dstSheetNames, value); }
@@ -224,6 +224,22 @@ namespace ExcelMerge.GUI.ViewModels
             RemovedColumnCount = summary.RemovedColumnCount;
         }
 
+        public void UpdateSheetDiffStates(IEnumerable<string> differingSheetNames)
+        {
+            var names = new HashSet<string>(differingSheetNames ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            UpdateSheetDiffStates(SrcSheetNames, names);
+            UpdateSheetDiffStates(DstSheetNames, names);
+        }
+
+        public void UpdateSheetDiffState(string sheetName, bool hasDiff)
+        {
+            if (string.IsNullOrEmpty(sheetName))
+                return;
+
+            UpdateSheetDiffState(SrcSheetNames, sheetName, hasDiff);
+            UpdateSheetDiffState(DstSheetNames, sheetName, hasDiff);
+        }
+
         public void MarkEdited()
         {
             HasUnsavedEdits = true;
@@ -315,27 +331,72 @@ namespace ExcelMerge.GUI.ViewModels
 
             if (existsSrc)
             {
-                SrcSheetNames = ExcelWorkbook.GetSheetNames(SrcPath).ToList();
+                SrcSheetNames = ExcelWorkbook.GetSheetNames(SrcPath)
+                    .Select(name => new SheetSelectionItem(name))
+                    .ToList();
                 SelectedSrcSheetIndex = 0;
             }
             else
             {
-                SrcSheetNames = new List<string>();
+                SrcSheetNames = new List<SheetSelectionItem>();
                 SelectedSrcSheetIndex = -1;
             }
 
             if (existsDst)
             {
-                DstSheetNames = ExcelWorkbook.GetSheetNames(DstPath).ToList();
+                DstSheetNames = ExcelWorkbook.GetSheetNames(DstPath)
+                    .Select(name => new SheetSelectionItem(name))
+                    .ToList();
                 SelectedDstSheetIndex = 0;
             }
             else
             {
-                DstSheetNames = new List<string>();
+                DstSheetNames = new List<SheetSelectionItem>();
                 SelectedDstSheetIndex = -1;
             }
 
             Executable = existsSrc && existsDst;
+        }
+
+        private static void UpdateSheetDiffStates(IEnumerable<SheetSelectionItem> items, ISet<string> differingSheetNames)
+        {
+            if (items == null)
+                return;
+
+            foreach (var item in items)
+                item.HasDiff = differingSheetNames.Contains(item.Name);
+        }
+
+        private static void UpdateSheetDiffState(IEnumerable<SheetSelectionItem> items, string sheetName, bool hasDiff)
+        {
+            if (items == null)
+                return;
+
+            foreach (var item in items.Where(i => string.Equals(i.Name, sheetName, StringComparison.Ordinal)))
+                item.HasDiff = hasDiff;
+        }
+    }
+
+    public sealed class SheetSelectionItem : BindableBase
+    {
+        private bool hasDiff;
+
+        public SheetSelectionItem(string name)
+        {
+            Name = name ?? string.Empty;
+        }
+
+        public string Name { get; private set; }
+
+        public bool HasDiff
+        {
+            get { return hasDiff; }
+            set { SetProperty(ref hasDiff, value); }
+        }
+
+        public override string ToString()
+        {
+            return Name;
         }
     }
 }

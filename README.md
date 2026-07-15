@@ -1,6 +1,20 @@
-# SmartExcelMerge
+# SmartExcelMerge - Smart Excel Diff for P4V
 
-SmartExcelMerge is a Windows spreadsheet diff tool based on [skanmera/ExcelMerge](https://github.com/skanmera/ExcelMerge). It keeps the lightweight Excel/CSV grid viewer and adds a table-aware diff model, code-diff-style insert/delete presentation, destination-side editing, and P4V integration.
+> A Windows spreadsheet diff tool that understands table structure instead of treating every shifted cell as a modification.
+
+SmartExcelMerge is based on [skanmera/ExcelMerge](https://github.com/skanmera/ExcelMerge). It keeps the lightweight Excel/CSV grid viewer and adds table-aware row and column alignment, code-diff-style presentation, destination-side editing, and a P4V workflow.
+
+![Smart diff overview](docs/images/smart-diff-overview.png)
+
+## Highlights
+
+| Capability | What it does |
+| --- | --- |
+| Smart table diff | Matches stable column headers and row IDs so inserted rows or columns do not turn all following cells into modifications. |
+| Code-diff presentation | Shows real additions, removals, and edited cells with distinct visual states. |
+| Multi-sheet navigation | Opens the first changed sheet and highlights every changed sheet in the selectors. |
+| Destination editing | Edit cells, paste TSV, copy rows, insert rows, paste copied source rows, delete rows, then save with `Ctrl+S`. |
+| P4V integration | Opens P4V file revisions through a wrapper that preserves files locally and supports editable destinations. |
 
 ## What Changed
 
@@ -10,7 +24,14 @@ SmartExcelMerge is a Windows spreadsheet diff tool based on [skanmera/ExcelMerge
 - Aligns rows by a configured row key or an auto-detected ID/key/number-like column. Moving a keyed row does not become a delete plus add.
 - Shows real insertions, removals, and modified cells instead of marking all trailing cells as modified after a row or column insertion.
 - Reports added and removed column counts separately from modified rows and cells.
+- Aligns blank, keyless, and duplicate-key rows after stable-key matching, preventing existing empty rows from becoming false additions or removals.
 - Uses a bounded fallback path for large tables without reliable anchors, avoiding unbounded similarity work.
+
+### Multi-Sheet Diff Navigation
+
+- Scans same-name sheets at startup and opens the first sheet with a meaningful difference.
+- Marks every changed sheet in red in both sheet selectors, so a multi-sheet workbook can be reviewed without guessing where changes are located.
+- Keeps the source and destination sheet selections synchronized while switching sheets.
 
 ### Code-Diff-Style Presentation
 
@@ -19,8 +40,6 @@ SmartExcelMerge is a Windows spreadsheet diff tool based on [skanmera/ExcelMerge
 | Green | Added row or column content |
 | Gray with `///` hatch | Removed row or column placeholder |
 | Yellow | A cell value was modified |
-
-![Smart diff overview](docs/images/smart-diff-overview.png)
 
 The screenshot was produced from the public fixtures in [`docs/demo`](docs/demo): one added row, one removed row, one added column, one removed column, and one modified cell. The `ID=1005` record is also reordered to verify that a keyed row move is not treated as a remove/add pair.
 

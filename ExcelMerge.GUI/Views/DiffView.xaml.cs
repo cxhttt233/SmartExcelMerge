@@ -35,6 +35,44 @@ namespace ExcelMerge.GUI.Views
         private bool isWindowClosingHandlerAttached;
         private string copiedRowsText = string.Empty;
 
+        private sealed class SheetDiffTarget
+        {
+            public SheetDiffTarget(
+                string name,
+                int srcSheetIndex,
+                int dstSheetIndex,
+                ExcelSheet srcSheet,
+                ExcelSheet dstSheet,
+                FileSetting srcFileSetting,
+                FileSetting dstFileSetting,
+                ExcelSheetDiffConfig config)
+            {
+                Name = name;
+                SrcSheetIndex = srcSheetIndex;
+                DstSheetIndex = dstSheetIndex;
+                SrcSheet = srcSheet;
+                DstSheet = dstSheet;
+                SrcFileSetting = srcFileSetting;
+                DstFileSetting = dstFileSetting;
+                Config = config;
+            }
+
+            public string Name { get; private set; }
+            public int SrcSheetIndex { get; private set; }
+            public int DstSheetIndex { get; private set; }
+            public ExcelSheet SrcSheet { get; private set; }
+            public ExcelSheet DstSheet { get; private set; }
+            public FileSetting SrcFileSetting { get; private set; }
+            public FileSetting DstFileSetting { get; private set; }
+            public ExcelSheetDiffConfig Config { get; private set; }
+            public ExcelSheetDiff Diff { get; set; }
+
+            public bool HasDiff
+            {
+                get { return Diff != null && Diff.CreateSummary().HasDiff; }
+            }
+        }
+
         public DiffView()
         {
             InitializeComponent();
@@ -96,7 +134,7 @@ namespace ExcelMerge.GUI.Views
             var args = new DiffViewEventArgs<FastGridControl>(null, container, TargetType.First);
             DataGridEventDispatcher.Instance.DispatchParentLoadEvent(args);
 
-            ExecuteDiff(isStartup: true);
+            ExecuteDiff(isStartup: true, scanAllSheets: true);
             isLoaded = true;
 
             // In order to enable Ctrl + F immediately after startup.
@@ -118,17 +156,37 @@ namespace ExcelMerge.GUI.Views
 
         private ExcelSheetDiffConfig CreateDiffConfig(FileSetting srcFileSetting, FileSetting dstFileSetting, bool isStartup)
         {
-            var config = new ExcelSheetDiffConfig();
-            config.UseSmartTableDiff = App.Instance.Setting.UseSmartTableDiff;
-
-            config.SrcSheetIndex = SrcSheetCombobox.SelectedIndex;
-            config.DstSheetIndex = DstSheetCombobox.SelectedIndex;
+            var srcSheetIndex = SrcSheetCombobox.SelectedIndex;
+            var dstSheetIndex = DstSheetCombobox.SelectedIndex;
 
             if (srcFileSetting != null)
             {
                 if (isStartup)
-                    config.SrcSheetIndex = GetSheetIndex(srcFileSetting, SrcSheetCombobox.Items);
+                    srcSheetIndex = GetSheetIndex(srcFileSetting, SrcSheetCombobox.Items);
+            }
 
+            if (dstFileSetting != null)
+            {
+                if (isStartup)
+                    dstSheetIndex = GetSheetIndex(dstFileSetting, DstSheetCombobox.Items);
+            }
+
+            return CreateDiffConfig(srcFileSetting, dstFileSetting, srcSheetIndex, dstSheetIndex);
+        }
+
+        private ExcelSheetDiffConfig CreateDiffConfig(
+            FileSetting srcFileSetting,
+            FileSetting dstFileSetting,
+            int srcSheetIndex,
+            int dstSheetIndex)
+        {
+            var config = new ExcelSheetDiffConfig();
+            config.UseSmartTableDiff = App.Instance.Setting.UseSmartTableDiff;
+            config.SrcSheetIndex = srcSheetIndex;
+            config.DstSheetIndex = dstSheetIndex;
+
+            if (srcFileSetting != null)
+            {
                 config.SrcHeaderIndex = srcFileSetting.ColumnHeaderIndex;
                 config.SrcRowHeaderIndex = srcFileSetting.RowHeaderIndex;
                 config.SrcRowHeaderName = srcFileSetting.RowHeaderName ?? string.Empty;
@@ -136,9 +194,6 @@ namespace ExcelMerge.GUI.Views
 
             if (dstFileSetting != null)
             {
-                if (isStartup)
-                    config.DstSheetIndex = GetSheetIndex(dstFileSetting, DstSheetCombobox.Items);
-
                 config.DstHeaderIndex = dstFileSetting.ColumnHeaderIndex;
                 config.DstRowHeaderIndex = dstFileSetting.RowHeaderIndex;
                 config.DstRowHeaderName = dstFileSetting.RowHeaderName ?? string.Empty;
@@ -154,7 +209,7 @@ namespace ExcelMerge.GUI.Views
 
             var index = fileSetting.SheetIndex;
             if (!string.IsNullOrEmpty(fileSetting.SheetName))
-                index = sheetNames.IndexOf(fileSetting.SheetName);
+                index = GetSheetIndex(sheetNames, fileSetting.SheetName);
 
             if (index < 0 || index >= sheetNames.Count)
             {
@@ -163,6 +218,31 @@ namespace ExcelMerge.GUI.Views
             }
 
             return index;
+        }
+
+        private static string GetSheetName(object item)
+        {
+            var sheetItem = item as SheetSelectionItem;
+            return sheetItem == null ? string.Empty : sheetItem.Name;
+        }
+
+        private static string GetSelectedSheetName(ComboBox sheetCombobox)
+        {
+            return sheetCombobox == null ? string.Empty : GetSheetName(sheetCombobox.SelectedItem);
+        }
+
+        private static int GetSheetIndex(ItemCollection sheetItems, string sheetName)
+        {
+            if (string.IsNullOrEmpty(sheetName))
+                return -1;
+
+            for (var index = 0; index < sheetItems.Count; index++)
+            {
+                if (string.Equals(GetSheetName(sheetItems[index]), sheetName, StringComparison.Ordinal))
+                    return index;
+            }
+
+            return -1;
         }
 
         private void LocationGrid_MouseDown(object sender, MouseEventArgs e)
@@ -384,7 +464,7 @@ namespace ExcelMerge.GUI.Views
 
         private void DiffButton_Click(object sender, RoutedEventArgs e)
         {
-            ExecuteDiff();
+            ExecuteDiff(scanAllSheets: true);
         }
 
         private void SheetCombobox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -412,8 +492,8 @@ namespace ExcelMerge.GUI.Views
             if (targetCombobox == null)
                 return;
 
-            var sheetName = changedCombobox.SelectedItem.ToString();
-            var targetIndex = targetCombobox.Items.IndexOf(sheetName);
+            var sheetName = GetSelectedSheetName(changedCombobox);
+            var targetIndex = GetSheetIndex(targetCombobox.Items, sheetName);
             if (targetIndex < 0 || targetIndex == targetCombobox.SelectedIndex)
                 return;
 
@@ -468,10 +548,10 @@ namespace ExcelMerge.GUI.Views
             if (!IgnoreFileSettingCheckbox.IsChecked.Value)
             {
                 srcSetting =
-                    FindFilseSetting(Path.GetFileName(srcPath), SrcSheetCombobox.SelectedIndex, SrcSheetCombobox.SelectedItem.ToString(), isStartup);
+                    FindFilseSetting(Path.GetFileName(srcPath), SrcSheetCombobox.SelectedIndex, GetSelectedSheetName(SrcSheetCombobox), isStartup);
 
                 dstSetting =
-                    FindFilseSetting(Path.GetFileName(dstPath), DstSheetCombobox.SelectedIndex, DstSheetCombobox.SelectedItem.ToString(), isStartup);
+                    FindFilseSetting(Path.GetFileName(dstPath), DstSheetCombobox.SelectedIndex, GetSelectedSheetName(DstSheetCombobox), isStartup);
 
                 diffConfig = CreateDiffConfig(srcSetting, dstSetting, isStartup);
             }
@@ -499,7 +579,139 @@ namespace ExcelMerge.GUI.Views
             return diff;
         }
 
-        private void ExecuteDiff(bool isStartup = false)
+        private List<SheetDiffTarget> CreateSheetDiffTargets(
+            ExcelWorkbook srcWorkbook,
+            ExcelWorkbook dstWorkbook,
+            FileSetting currentSrcFileSetting,
+            FileSetting currentDstFileSetting)
+        {
+            var targets = new List<SheetDiffTarget>();
+            var currentConfig = CloneDiffConfig(diffConfig);
+            for (var srcIndex = 0; srcIndex < SrcSheetCombobox.Items.Count; srcIndex++)
+            {
+                var sheetName = GetSheetName(SrcSheetCombobox.Items[srcIndex]);
+                var dstIndex = GetSheetIndex(DstSheetCombobox.Items, sheetName);
+                if (dstIndex < 0)
+                    continue;
+
+                ExcelSheet srcSheet;
+                ExcelSheet dstSheet;
+                if (!srcWorkbook.Sheets.TryGetValue(sheetName, out srcSheet) ||
+                    !dstWorkbook.Sheets.TryGetValue(sheetName, out dstSheet))
+                {
+                    continue;
+                }
+
+                FileSetting srcFileSetting;
+                FileSetting dstFileSetting;
+                ExcelSheetDiffConfig config;
+                if (srcIndex == currentConfig.SrcSheetIndex && dstIndex == currentConfig.DstSheetIndex)
+                {
+                    srcFileSetting = currentSrcFileSetting;
+                    dstFileSetting = currentDstFileSetting;
+                    config = CloneDiffConfig(currentConfig);
+                }
+                else
+                {
+                    var settings = FindFileSettingsForSheet(srcIndex, sheetName, dstIndex, sheetName);
+                    srcFileSetting = settings.Item1;
+                    dstFileSetting = settings.Item2;
+                    config = CreateDiffConfig(srcFileSetting, dstFileSetting, srcIndex, dstIndex);
+                }
+
+                targets.Add(new SheetDiffTarget(
+                    sheetName,
+                    srcIndex,
+                    dstIndex,
+                    srcSheet,
+                    dstSheet,
+                    srcFileSetting,
+                    dstFileSetting,
+                    config));
+            }
+
+            return targets;
+        }
+
+        private Tuple<FileSetting, FileSetting> FindFileSettingsForSheet(
+            int srcSheetIndex,
+            string srcSheetName,
+            int dstSheetIndex,
+            string dstSheetName)
+        {
+            if (IgnoreFileSettingCheckbox.IsChecked.Value)
+                return Tuple.Create<FileSetting, FileSetting>(null, null);
+
+            var srcFileSetting = FindFilseSetting(
+                Path.GetFileName(SrcPathTextBox.Text),
+                srcSheetIndex,
+                srcSheetName,
+                false);
+            var dstFileSetting = FindFilseSetting(
+                Path.GetFileName(DstPathTextBox.Text),
+                dstSheetIndex,
+                dstSheetName,
+                false);
+            return Tuple.Create(srcFileSetting, dstFileSetting);
+        }
+
+        private List<SheetDiffTarget> ScanSheetDiffs(
+            ExcelWorkbook srcWorkbook,
+            ExcelWorkbook dstWorkbook,
+            FileSetting currentSrcFileSetting,
+            FileSetting currentDstFileSetting)
+        {
+            var targets = CreateSheetDiffTargets(srcWorkbook, dstWorkbook, currentSrcFileSetting, currentDstFileSetting);
+            if (!targets.Any())
+                return targets;
+
+            ProgressWindow.DoWorkWithModal(progress =>
+            {
+                foreach (var target in targets)
+                {
+                    progress.Report(Properties.Resources.Msg_ExtractingDiff + ": " + target.Name);
+                    target.Diff = ExcelSheet.Diff(target.SrcSheet, target.DstSheet, target.Config);
+                }
+            });
+
+            return targets;
+        }
+
+        private void UpdateSheetDiffStates(IEnumerable<SheetDiffTarget> targets)
+        {
+            var viewModel = GetViewModel();
+            if (viewModel == null)
+                return;
+
+            viewModel.UpdateSheetDiffStates(targets.Where(target => target.HasDiff).Select(target => target.Name));
+        }
+
+        private static SheetDiffTarget FindSheetDiffTarget(
+            IEnumerable<SheetDiffTarget> targets,
+            int srcSheetIndex,
+            int dstSheetIndex)
+        {
+            return targets.FirstOrDefault(target =>
+                target.SrcSheetIndex == srcSheetIndex && target.DstSheetIndex == dstSheetIndex);
+        }
+
+        private static ExcelSheetDiffConfig CloneDiffConfig(ExcelSheetDiffConfig config)
+        {
+            return new ExcelSheetDiffConfig()
+            {
+                SrcSheetIndex = config.SrcSheetIndex,
+                DstSheetIndex = config.DstSheetIndex,
+                SrcHeaderIndex = config.SrcHeaderIndex,
+                DstHeaderIndex = config.DstHeaderIndex,
+                UseSmartTableDiff = config.UseSmartTableDiff,
+                SrcRowHeaderIndex = config.SrcRowHeaderIndex,
+                DstRowHeaderIndex = config.DstRowHeaderIndex,
+                SrcRowHeaderName = config.SrcRowHeaderName ?? string.Empty,
+                DstRowHeaderName = config.DstRowHeaderName ?? string.Empty,
+            };
+        }
+
+        private void ExecuteDiff(bool isStartup = false, bool scanAllSheets = false)
         {
             if (isExecutingDiff)
                 return;
@@ -524,43 +736,92 @@ namespace ExcelMerge.GUI.Views
                 SrcSheetCombobox.SelectedIndex = diffConfig.SrcSheetIndex;
                 DstSheetCombobox.SelectedIndex = diffConfig.DstSheetIndex;
 
-                var srcSheet = srcWorkbook.Sheets[SrcSheetCombobox.SelectedItem.ToString()];
-                var dstSheet = dstWorkbook.Sheets[DstSheetCombobox.SelectedItem.ToString()];
+                ExcelSheetDiff scannedDiff = null;
+                if (scanAllSheets)
+                {
+                    var targets = ScanSheetDiffs(srcWorkbook, dstWorkbook, srcFileSetting, dstFileSetting);
+                    UpdateSheetDiffStates(targets);
+
+                    var firstDifferingTarget = targets.FirstOrDefault(target => target.HasDiff);
+                    if (firstDifferingTarget != null)
+                    {
+                        SrcSheetCombobox.SelectedIndex = firstDifferingTarget.SrcSheetIndex;
+                        DstSheetCombobox.SelectedIndex = firstDifferingTarget.DstSheetIndex;
+                    }
+
+                    var selectedTarget = FindSheetDiffTarget(
+                        targets,
+                        SrcSheetCombobox.SelectedIndex,
+                        DstSheetCombobox.SelectedIndex);
+                    if (selectedTarget != null)
+                    {
+                        diffConfig = selectedTarget.Config;
+                        srcFileSetting = selectedTarget.SrcFileSetting;
+                        dstFileSetting = selectedTarget.DstFileSetting;
+                        scannedDiff = selectedTarget.Diff;
+                    }
+                }
+
+                var srcSheetName = GetSelectedSheetName(SrcSheetCombobox);
+                var dstSheetName = GetSelectedSheetName(DstSheetCombobox);
+                ExcelSheet srcSheet;
+                ExcelSheet dstSheet;
+                if (!srcWorkbook.Sheets.TryGetValue(srcSheetName, out srcSheet) ||
+                    !dstWorkbook.Sheets.TryGetValue(dstSheetName, out dstSheet))
+                {
+                    return;
+                }
 
                 if (srcSheet.Rows.Count > 10000 || dstSheet.Rows.Count > 10000)
                     MessageBox.Show(Properties.Resources.Msg_WarnSize);
 
-                var diff = ExecuteDiff(srcSheet, dstSheet);
-                SrcDataGrid.Model = new DiffGridModel(diff, DiffType.Source);
-                DstDataGrid.IsReadOnly = !CanEditDst();
-                DstDataGrid.Model = new DiffGridModel(diff, DiffType.Dest, CanEditDst() ? (Action<int, int, string>)ApplyDstCellEdit : null);
-
-                args = new DiffViewEventArgs<FastGridControl>(SrcDataGrid, container);
-                DataGridEventDispatcher.Instance.DispatchFileSettingUpdateEvent(args, srcFileSetting);
-
-                args = new DiffViewEventArgs<FastGridControl>(DstDataGrid, container);
-                DataGridEventDispatcher.Instance.DispatchFileSettingUpdateEvent(args, dstFileSetting);
-
-                args = new DiffViewEventArgs<FastGridControl>(null, container, TargetType.First);
-                DataGridEventDispatcher.Instance.DispatchDisplayFormatChangeEvent(args, ShowOnlyDiffRadioButton.IsChecked.Value);
-                DataGridEventDispatcher.Instance.DispatchPostExecuteDiffEvent(args);
-
-                var summary = diff.CreateSummary();
-                GetViewModel().UpdateDiffSummary(summary);
-
-                if (!App.Instance.KeepFileHistory)
-                    App.Instance.UpdateRecentFiles(SrcPathTextBox.Text, DstPathTextBox.Text);
-
-                if (App.Instance.Setting.NotifyEqual && !summary.HasDiff)
-                    MessageBox.Show(Properties.Resources.Message_NoDiff);
-
-                if (App.Instance.Setting.FocusFirstDiff)
-                    MoveNextModifiedCell();
+                var diff = scannedDiff ?? ExecuteDiff(srcSheet, dstSheet);
+                ApplyDiff(diff, srcFileSetting, dstFileSetting, srcSheetName, dstSheetName);
             }
             finally
             {
                 isExecutingDiff = false;
             }
+        }
+
+        private void ApplyDiff(
+            ExcelSheetDiff diff,
+            FileSetting srcFileSetting,
+            FileSetting dstFileSetting,
+            string srcSheetName,
+            string dstSheetName)
+        {
+            SrcDataGrid.Model = new DiffGridModel(diff, DiffType.Source);
+            DstDataGrid.IsReadOnly = !CanEditDst();
+            DstDataGrid.Model = new DiffGridModel(diff, DiffType.Dest, CanEditDst() ? (Action<int, int, string>)ApplyDstCellEdit : null);
+
+            var args = new DiffViewEventArgs<FastGridControl>(SrcDataGrid, container);
+            DataGridEventDispatcher.Instance.DispatchFileSettingUpdateEvent(args, srcFileSetting);
+
+            args = new DiffViewEventArgs<FastGridControl>(DstDataGrid, container);
+            DataGridEventDispatcher.Instance.DispatchFileSettingUpdateEvent(args, dstFileSetting);
+
+            args = new DiffViewEventArgs<FastGridControl>(null, container, TargetType.First);
+            DataGridEventDispatcher.Instance.DispatchDisplayFormatChangeEvent(args, ShowOnlyDiffRadioButton.IsChecked.Value);
+            DataGridEventDispatcher.Instance.DispatchPostExecuteDiffEvent(args);
+
+            var summary = diff.CreateSummary();
+            var viewModel = GetViewModel();
+            if (viewModel != null)
+            {
+                viewModel.UpdateDiffSummary(summary);
+                if (string.Equals(srcSheetName, dstSheetName, StringComparison.Ordinal))
+                    viewModel.UpdateSheetDiffState(srcSheetName, summary.HasDiff);
+            }
+
+            if (!App.Instance.KeepFileHistory)
+                App.Instance.UpdateRecentFiles(SrcPathTextBox.Text, DstPathTextBox.Text);
+
+            if (App.Instance.Setting.NotifyEqual && !summary.HasDiff)
+                MessageBox.Show(Properties.Resources.Message_NoDiff);
+
+            if (App.Instance.Setting.FocusFirstDiff)
+                MoveNextModifiedCell();
         }
 
         private bool CanEditDst()
@@ -583,7 +844,7 @@ namespace ExcelMerge.GUI.Views
 
         private string GetDstSheetName()
         {
-            return DstSheetCombobox.SelectedItem == null ? string.Empty : DstSheetCombobox.SelectedItem.ToString();
+            return GetSelectedSheetName(DstSheetCombobox);
         }
 
         private DiffGridModel GetDstGridModel()

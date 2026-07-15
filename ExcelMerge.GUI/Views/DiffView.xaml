@@ -16,6 +16,23 @@
              PreviewKeyDown="UserControl_PreviewKeyDown"
              >
 
+  <UserControl.Resources>
+    <DataTemplate x:Key="SheetSelectionItemTemplate">
+      <TextBlock Text="{Binding Name}">
+        <TextBlock.Style>
+          <Style TargetType="{x:Type TextBlock}">
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding HasDiff}" Value="True">
+                <Setter Property="Foreground" Value="#C62828"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </TextBlock.Style>
+      </TextBlock>
+    </DataTemplate>
+  </UserControl.Resources>
+
   <Grid>
 
     <Grid.ColumnDefinitions>
@@ -76,6 +93,7 @@
               <ComboBox x:Name="SrcSheetCombobox" Margin="0,0,5,0" Width="100"
                         ItemsSource="{Binding SrcSheetNames}"
                         SelectedIndex="{Binding SelectedSrcSheetIndex}"
+                        ItemTemplate="{StaticResource SheetSelectionItemTemplate}"
                         SelectionChanged="SheetCombobox_SelectionChanged"
                         />
             </StackPanel>
@@ -99,6 +117,7 @@
               <ComboBox x:Name="DstSheetCombobox" Margin="5,0,0,0" Width="100"
                         ItemsSource="{Binding DstSheetNames}"
                         SelectedIndex="{Binding SelectedDstSheetIndex}"
+                        ItemTemplate="{StaticResource SheetSelectionItemTemplate}"
                         SelectionChanged="SheetCombobox_SelectionChanged"/>
             </StackPanel>
           </GroupBox>

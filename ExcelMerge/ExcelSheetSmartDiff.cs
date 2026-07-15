@@ -71,10 +71,12 @@ namespace ExcelMerge
             public int TotalRows { get; set; }
             public int NonEmptyCount { get; set; }
             public Dictionary<string, ExcelRow> UniqueRows { get; private set; }
+            public Dictionary<string, int> KeyCounts { get; private set; }
 
             public RowKeyProfile()
             {
                 UniqueRows = new Dictionary<string, ExcelRow>(StringComparer.OrdinalIgnoreCase);
+                KeyCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             }
         }
 
@@ -148,7 +150,7 @@ namespace ExcelMerge
                 return DiffLegacy(src, dst, config);
 
             var rows = rowKey != null
-                ? CreateSmartRowsByKey(src, dst, rowKey, config)
+                ? CreateSmartRowsByKey(src, dst, rowKey, columns, config)
                 : CreateSmartRowsByLcs(src, dst, columns);
 
             return CreateSmartSheetDiff(rows, columns);
@@ -708,6 +710,9 @@ namespace ExcelMerge
                     continue;
 
                 profile.NonEmptyCount++;
+                int count;
+                profile.KeyCounts.TryGetValue(key, out count);
+                profile.KeyCounts[key] = count + 1;
                 if (seen.ContainsKey(key))
                     duplicates.Add(key);
                 else
@@ -723,7 +728,12 @@ namespace ExcelMerge
             return profile;
         }
 
-        private static IEnumerable<SmartRow> CreateSmartRowsByKey(ExcelSheet src, ExcelSheet dst, SmartRowKey rowKey, ExcelSheetDiffConfig config)
+        private static IEnumerable<SmartRow> CreateSmartRowsByKey(
+            ExcelSheet src,
+            ExcelSheet dst,
+            SmartRowKey rowKey,
+            IList<SmartColumn> columns,
+            ExcelSheetDiffConfig config)
         {
             var rows = new List<SmartRow>();
             var pairedSrcRows = new HashSet<int>();
@@ -732,29 +742,158 @@ namespace ExcelMerge
             PairPrefixRows(src, dst, config, rows, pairedSrcRows, pairedDstRows);
 
             var srcProfile = BuildRowKeyProfile(src, rowKey.SrcColumnIndex, pairedSrcRows);
+            var dstProfile = BuildRowKeyProfile(dst, rowKey.DstColumnIndex, pairedDstRows);
             var dstRows = dst.Rows.Values.Where(r => !pairedDstRows.Contains(r.Index)).ToList();
             var matches = new List<SmartRowMatch>();
-            var addedDstRows = new List<ExcelRow>();
 
             foreach (var dstRow in dstRows)
             {
                 var key = NormalizeKey(GetCellValue(dstRow, rowKey.DstColumnIndex));
                 ExcelRow srcRow;
-                if (!string.IsNullOrEmpty(key) && srcProfile.UniqueRows.TryGetValue(key, out srcRow) && !pairedSrcRows.Contains(srcRow.Index))
+                if (!string.IsNullOrEmpty(key)
+                    && GetKeyCount(srcProfile, key) == 1
+                    && GetKeyCount(dstProfile, key) == 1
+                    && srcProfile.UniqueRows.TryGetValue(key, out srcRow)
+                    && !pairedSrcRows.Contains(srcRow.Index))
                 {
                     matches.Add(new SmartRowMatch(srcRow, dstRow));
                     pairedSrcRows.Add(srcRow.Index);
                     pairedDstRows.Add(dstRow.Index);
                 }
-                else
-                {
-                    addedDstRows.Add(dstRow);
-                    pairedDstRows.Add(dstRow.Index);
-                }
             }
 
+            PairRowsWithoutReliableKey(
+                src,
+                dst,
+                rowKey,
+                srcProfile,
+                dstProfile,
+                columns,
+                matches,
+                pairedSrcRows,
+                pairedDstRows);
+
+            var addedDstRows = dst.Rows.Values.Where(r => !pairedDstRows.Contains(r.Index)).ToList();
             AddDataRowsInSourceOrder(src, rows, pairedSrcRows, matches, addedDstRows);
             return rows;
+        }
+
+        private static void PairRowsWithoutReliableKey(
+            ExcelSheet src,
+            ExcelSheet dst,
+            SmartRowKey rowKey,
+            RowKeyProfile srcProfile,
+            RowKeyProfile dstProfile,
+            IList<SmartColumn> columns,
+            IList<SmartRowMatch> matches,
+            HashSet<int> pairedSrcRows,
+            HashSet<int> pairedDstRows)
+        {
+            var srcRowsByKey = src.Rows.Values
+                .Where(r => !pairedSrcRows.Contains(r.Index)
+                    && HasUnreliableKey(r, rowKey.SrcColumnIndex, srcProfile, dstProfile))
+                .GroupBy(r => NormalizeKey(GetCellValue(r, rowKey.SrcColumnIndex)), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+            var dstRowsByKey = dst.Rows.Values
+                .Where(r => !pairedDstRows.Contains(r.Index)
+                    && HasUnreliableKey(r, rowKey.DstColumnIndex, dstProfile, srcProfile))
+                .GroupBy(r => NormalizeKey(GetCellValue(r, rowKey.DstColumnIndex)), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var key in srcRowsByKey.Keys.Union(dstRowsByKey.Keys, StringComparer.OrdinalIgnoreCase))
+            {
+                List<ExcelRow> srcRows;
+                if (!srcRowsByKey.TryGetValue(key, out srcRows))
+                    srcRows = new List<ExcelRow>();
+
+                List<ExcelRow> dstRows;
+                if (!dstRowsByKey.TryGetValue(key, out dstRows))
+                    dstRows = new List<ExcelRow>();
+
+                PairRowsWithinKeyGroup(srcRows, dstRows, columns, matches, pairedSrcRows, pairedDstRows);
+            }
+        }
+
+        private static void PairRowsWithinKeyGroup(
+            IList<ExcelRow> srcRows,
+            IList<ExcelRow> dstRows,
+            IList<SmartColumn> columns,
+            IList<SmartRowMatch> matches,
+            HashSet<int> pairedSrcRows,
+            HashSet<int> pairedDstRows)
+        {
+            PairExactRows(srcRows, dstRows, columns, matches, pairedSrcRows, pairedDstRows);
+
+            srcRows = srcRows.Where(r => !pairedSrcRows.Contains(r.Index)).ToList();
+            dstRows = dstRows.Where(r => !pairedDstRows.Contains(r.Index)).ToList();
+            if ((long)srcRows.Count * dstRows.Count > SmartRowLcsPairLimit)
+                return;
+
+            foreach (var row in CreateSmartRowsByLcs(srcRows, dstRows, columns))
+            {
+                if (row.SrcRow == null || row.DstRow == null)
+                    continue;
+
+                matches.Add(new SmartRowMatch(row.SrcRow, row.DstRow));
+                pairedSrcRows.Add(row.SrcRow.Index);
+                pairedDstRows.Add(row.DstRow.Index);
+            }
+        }
+
+        private static bool HasUnreliableKey(
+            ExcelRow row,
+            int columnIndex,
+            RowKeyProfile profile,
+            RowKeyProfile otherProfile)
+        {
+            var key = NormalizeKey(GetCellValue(row, columnIndex));
+            if (string.IsNullOrEmpty(key))
+                return true;
+
+            return GetKeyCount(profile, key) > 1 || GetKeyCount(otherProfile, key) > 1;
+        }
+
+        private static int GetKeyCount(RowKeyProfile profile, string key)
+        {
+            int count;
+            return profile.KeyCounts.TryGetValue(key, out count) ? count : 0;
+        }
+
+        private static void PairExactRows(
+            IEnumerable<ExcelRow> srcRows,
+            IEnumerable<ExcelRow> dstRows,
+            IList<SmartColumn> columns,
+            IList<SmartRowMatch> matches,
+            HashSet<int> pairedSrcRows,
+            HashSet<int> pairedDstRows)
+        {
+            var dstRowsBySignature = new Dictionary<string, Queue<ExcelRow>>();
+            foreach (var dstRow in dstRows)
+            {
+                var signature = CreateRowSignature(dstRow, columns, false);
+                Queue<ExcelRow> rowsWithSameSignature;
+                if (!dstRowsBySignature.TryGetValue(signature, out rowsWithSameSignature))
+                {
+                    rowsWithSameSignature = new Queue<ExcelRow>();
+                    dstRowsBySignature[signature] = rowsWithSameSignature;
+                }
+
+                rowsWithSameSignature.Enqueue(dstRow);
+            }
+
+            foreach (var srcRow in srcRows)
+            {
+                var signature = CreateRowSignature(srcRow, columns, true);
+                Queue<ExcelRow> rowsWithSameSignature;
+                if (!dstRowsBySignature.TryGetValue(signature, out rowsWithSameSignature)
+                    || rowsWithSameSignature.Count == 0)
+                    continue;
+
+                var dstRow = rowsWithSameSignature.Dequeue();
+                matches.Add(new SmartRowMatch(srcRow, dstRow));
+                pairedSrcRows.Add(srcRow.Index);
+                pairedDstRows.Add(dstRow.Index);
+            }
         }
 
         private static void AddDataRowsInSourceOrder(
@@ -839,10 +978,18 @@ namespace ExcelMerge
 
         private static IEnumerable<SmartRow> CreateSmartRowsByLcs(ExcelSheet src, ExcelSheet dst, IList<SmartColumn> columns)
         {
-            var srcRows = src.Rows.Values.Select(r => new SmartRowSignature(r, CreateRowSignature(r, columns, true))).ToList();
-            var dstRows = dst.Rows.Values.Select(r => new SmartRowSignature(r, CreateRowSignature(r, columns, false))).ToList();
+            return CreateSmartRowsByLcs(src.Rows.Values, dst.Rows.Values, columns);
+        }
+
+        private static IEnumerable<SmartRow> CreateSmartRowsByLcs(
+            IEnumerable<ExcelRow> srcRows,
+            IEnumerable<ExcelRow> dstRows,
+            IList<SmartColumn> columns)
+        {
+            var srcSignatures = srcRows.Select(r => new SmartRowSignature(r, CreateRowSignature(r, columns, true))).ToList();
+            var dstSignatures = dstRows.Select(r => new SmartRowSignature(r, CreateRowSignature(r, columns, false))).ToList();
             var option = new DiffOption<SmartRowSignature>();
-            var results = DiffUtil.Diff(srcRows, dstRows, option);
+            var results = DiffUtil.Diff(srcSignatures, dstSignatures, option);
             results = DiffUtil.Order(results, DiffOrderType.LazyDeleteFirst);
             results = DiffUtil.OptimizeCaseDeletedFirst(results);
 

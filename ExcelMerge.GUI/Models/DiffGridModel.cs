@@ -71,7 +71,7 @@ namespace ExcelMerge.GUI.Models
             SheetDiff = sheetDiff;
             this.setCellText = setCellText;
 
-            columnCount = SheetDiff.Rows.Max(r => r.Value.Cells.Count);
+            columnCount = SheetDiff.Rows.Any() ? SheetDiff.Rows.Max(r => r.Value.Cells.Count) : 0;
             rowCount = SheetDiff.Rows.Count();
             
             App.Instance.OnSettingUpdated += () => { InvalidateAll(); };
