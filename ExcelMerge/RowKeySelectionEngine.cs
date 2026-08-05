@@ -81,6 +81,10 @@ namespace ExcelMerge
             }
 
             var selectedAnalysis = Analyze(src, dst, config, selected);
+            if (manual.Count > 0)
+                selectedAnalysis.Reason = selected.Count == 1 ? "手动单主键分析" : "手动联合主键分析";
+
+            analysis.SelectedAnalysis = selectedAnalysis;
             analysis.SelectedColumnNames = selected.Select(p => p.Name).ToList();
             analysis.SelectedScore = selectedAnalysis.Score;
             analysis.SelectedOverlapRate = selectedAnalysis.OverlapRate;
@@ -95,14 +99,20 @@ namespace ExcelMerge
             if (!usable)
             {
                 analysis.SelectedColumnNames = new List<string>();
-                analysis.SelectionReason = "所选字段存在较多空值、重复值或两表没有共同值，未强制作为主键。";
+                analysis.SelectionReason = string.Format(
+                    "所选字段分析未通过：左侧非空率 {0:P1}、右侧非空率 {1:P1}、左侧唯一率 {2:P1}、右侧唯一率 {3:P1}、两表重合率 {4:P1}。未强制作为主键。",
+                    selectedAnalysis.SourceCoverageRate,
+                    selectedAnalysis.DestinationCoverageRate,
+                    selectedAnalysis.SourceUniqueRate,
+                    selectedAnalysis.DestinationUniqueRate,
+                    selectedAnalysis.OverlapRate);
             }
             else if (selected.Count == 1)
             {
                 config.SrcRowHeaderName = selected[0].Name;
                 config.DstRowHeaderName = selected[0].Name;
                 analysis.SelectionReason = manual.Count > 0
-                    ? "使用手动单主键匹配记录。"
+                    ? "使用手动单主键匹配记录；已重新计算非空率、唯一率、重合率和匹配数量。"
                     : "自动选择综合得分最高的字段；评分考虑字段名、非空率、唯一率和两表重合率。";
             }
             else
@@ -115,7 +125,7 @@ namespace ExcelMerge
                 result.SyntheticDestinationColumn = dstSynthetic;
                 config.SrcRowHeaderName = SyntheticHeader;
                 config.DstRowHeaderName = SyntheticHeader;
-                analysis.SelectionReason = "使用手动联合主键；各字段按选择顺序组合后匹配同一条记录。";
+                analysis.SelectionReason = "使用手动联合主键；已按所选字段组合后重新计算非空率、唯一率、重合率和匹配数量。";
             }
 
             config.RowKeyAnalysis = analysis;
