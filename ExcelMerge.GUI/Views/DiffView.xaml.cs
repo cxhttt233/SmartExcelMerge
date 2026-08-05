@@ -1031,12 +1031,12 @@ namespace ExcelMerge.GUI.Views
             {
                 var backupPath = ExcelWorkbookEditor.SaveWorkingCopyToOriginal(DstPathTextBox.Text, viewModel.DstEditPath);
                 viewModel.MarkSaved(backupPath);
-                MessageBox.Show("Saved destination edits.\nBackup:\n" + backupPath);
+                MessageBox.Show("修改已保存。\n备份文件：\n" + backupPath);
                 return true;
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Failed to save destination edits.\n\n" + ex.Message);
+                MessageBox.Show("保存修改失败。\n\n" + ex.Message);
                 return false;
             }
         }
@@ -1055,7 +1055,7 @@ namespace ExcelMerge.GUI.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Failed to discard destination edits.\n\n" + ex.Message);
+                MessageBox.Show("放弃修改失败。\n\n" + ex.Message);
             }
         }
 
@@ -1065,7 +1065,7 @@ namespace ExcelMerge.GUI.Views
             if (viewModel == null || !viewModel.HasUnsavedEdits)
                 return;
 
-            var result = MessageBox.Show("Save destination edits before closing?", "ExcelMerge", MessageBoxButton.YesNoCancel);
+            var result = MessageBox.Show("关闭前是否保存对修改后表格所做的更改？", "ExcelMerge", MessageBoxButton.YesNoCancel);
             if (result == MessageBoxResult.Cancel)
             {
                 e.Cancel = true;

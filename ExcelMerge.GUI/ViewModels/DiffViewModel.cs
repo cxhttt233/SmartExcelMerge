@@ -133,9 +133,9 @@ namespace ExcelMerge.GUI.ViewModels
             get
             {
                 if (!DstEditingEnabled)
-                    return "Read only";
+                    return "只读";
 
-                return HasUnsavedEdits ? "Dst edited" : "Dst editable";
+                return HasUnsavedEdits ? "修改尚未保存" : "可编辑";
             }
         }
 

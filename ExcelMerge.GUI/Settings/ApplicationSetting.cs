@@ -360,7 +360,7 @@ namespace ExcelMerge.GUI.Settings
 
             if (string.IsNullOrEmpty(FontName))
             {
-                FontName = "Arial";
+                FontName = "Microsoft YaHei UI";
                 isChanged |= true;
             }
 

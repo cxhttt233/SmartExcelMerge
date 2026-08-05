@@ -21,6 +21,7 @@ namespace ExcelMerge.GUI
             app.InitializeComponent();
             app.Setting = ApplicationSetting.Load();
             app.Setting.EnsureCulture();
+            app.Setting.Culture = "zh-CN";
             app.UpdateResourceCulture();
 
             if (app.Setting.Ensure())
@@ -66,7 +67,7 @@ namespace ExcelMerge.GUI
                 return CommandFactory.Create(CommandLineOption);
             }
 
-            throw new Exceptions.ExcelMergeException(true, $"Invalid argument.\nargument:\n{string.Join(" ", args)}");
+            throw new Exceptions.ExcelMergeException(true, $"参数无效。\n参数：\n{string.Join(" ", args)}");
         }
 
         private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
@@ -81,8 +82,8 @@ namespace ExcelMerge.GUI
 
                 if (showDialog)
                 {
-                    var message = $"Execute external command ? \n\n------------------------------------\n {exception.Message}\n{exception.StackTrace}";
-                    var result = MessageBox.Show(message, "An error occurred.", MessageBoxButton.YesNo);
+                    var message = $"是否执行外部命令？ \n\n------------------------------------\n {exception.Message}\n{exception.StackTrace}";
+                    var result = MessageBox.Show(message, "发生错误", MessageBoxButton.YesNo);
                     executeExternalCommand = result == MessageBoxResult.Yes;
                 }
 
