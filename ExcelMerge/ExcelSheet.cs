@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NPOI.SS.UserModel;
@@ -125,7 +125,13 @@ namespace ExcelMerge
             config = config ?? new ExcelSheetDiffConfig();
 
             if (config.UseSmartTableDiff)
-                return SmartDiff(src, dst, config);
+            {
+                var prepared = RowKeySelectionEngine.Prepare(src, dst, config);
+                var diff = SmartDiff(prepared.Source, prepared.Destination, config);
+                if (prepared.SyntheticSourceColumn.HasValue && prepared.SyntheticDestinationColumn.HasValue)
+                    RowKeySelectionEngine.RemoveSyntheticColumn(diff, prepared.SyntheticSourceColumn.Value, prepared.SyntheticDestinationColumn.Value);
+                return diff;
+            }
 
             return DiffLegacy(src, dst, config);
         }
