@@ -34,11 +34,18 @@ namespace ExcelMerge.GUI.Views
         {
             analysis = analysis ?? new RowKeyAnalysis();
             var selectedSet = new HashSet<string>(selected ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
-            Title = "主键分析与选择"; Width = 980; Height = 560; MinWidth = 760; MinHeight = 420;
+            Title = "主键分析与选择"; Width = 980; Height = 580; MinWidth = 760; MinHeight = 440;
             WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false;
             var root = new DockPanel { Margin = new Thickness(12) }; Content = root;
             var top = new StackPanel { Margin = new Thickness(0,0,0,8) }; DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
-            top.Children.Add(new TextBlock { Text = Summary(analysis), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,8) });
+            top.Children.Add(new TextBlock
+            {
+                Text = Summary(analysis),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0,0,0,8),
+                Padding = new Thickness(8),
+                Background = SystemColors.ControlLightBrush
+            });
             var modes = new StackPanel { Orientation = Orientation.Horizontal };
             auto = new RadioButton { Content = "自动选择", IsChecked = selectedSet.Count == 0, Margin = new Thickness(0,0,16,0) };
             manual = new RadioButton { Content = "手动选择（可勾选一个或多个字段）", IsChecked = selectedSet.Count > 0 };
@@ -54,9 +61,9 @@ namespace ExcelMerge.GUI.Views
             Add("左侧唯一率","SourceUnique",88); Add("右侧唯一率","DestinationUnique",88); Add("两表重合率","Overlap",88);
             Add("得分","Score",65); Add("分析结论","Reason",new DataGridLength(1,DataGridLengthUnitType.Star)); root.Children.Add(grid);
             var bottom = new DockPanel { Margin=new Thickness(0,10,0,0) }; DockPanel.SetDock(bottom,Dock.Bottom); root.Children.Add(bottom);
-            bottom.Children.Add(new TextBlock { Text="联合主键按勾选字段的显示顺序组合。优先选择稳定编码，避免使用会随排序变化的序号。", TextWrapping=TextWrapping.Wrap, VerticalAlignment=VerticalAlignment.Center });
+            bottom.Children.Add(new TextBlock { Text="联合主键按勾选字段的显示顺序组合。应用后会重新分析组合唯一率、重合率和匹配数量，并在主界面常驻显示。", TextWrapping=TextWrapping.Wrap, VerticalAlignment=VerticalAlignment.Center });
             var buttons = new StackPanel { Orientation=Orientation.Horizontal, HorizontalAlignment=HorizontalAlignment.Right }; DockPanel.SetDock(buttons,Dock.Right); bottom.Children.Add(buttons);
-            var apply = new Button { Content="应用并重新比较", MinWidth=110, Margin=new Thickness(8,0,0,0), Padding=new Thickness(8,3,8,3), IsDefault=true };
+            var apply = new Button { Content="应用并重新分析", MinWidth=110, Margin=new Thickness(8,0,0,0), Padding=new Thickness(8,3,8,3), IsDefault=true };
             apply.Click += Apply; buttons.Children.Add(apply);
             buttons.Children.Add(new Button { Content="取消", MinWidth=72, Margin=new Thickness(8,0,0,0), Padding=new Thickness(8,3,8,3), IsCancel=true });
             auto.Checked += (s,e) => grid.IsEnabled=false; manual.Checked += (s,e) => grid.IsEnabled=true; grid.IsEnabled = selectedSet.Count > 0;
@@ -87,10 +94,35 @@ namespace ExcelMerge.GUI.Views
             DialogResult = true;
         }
 
-        private static string Summary(RowKeyAnalysis a)
+        private static string Summary(RowKeyAnalysis analysis)
         {
-            if (!a.HasSelectedKey) return "当前匹配方式：未固定主键。\n" + a.SelectionReason;
-            return string.Format("当前主键：{0}；两表重合率：{1:P1}；匹配唯一键：{2}。\n{3}", a.SelectedDisplayName, a.SelectedOverlapRate, a.MatchedKeyCount, a.SelectionReason);
+            if (!analysis.HasSelectedKey)
+                return "当前主键：未固定\n匹配方式：智能相似度匹配\n" + analysis.SelectionReason;
+
+            var mode = analysis.SelectionMode == RowKeySelectionMode.Manual ? "手动" : "自动";
+            var selected = analysis.SelectedAnalysis;
+            if (selected == null)
+            {
+                return string.Format(
+                    "当前主键：{0}（{1}）\n两表重合率：{2:P1}；匹配唯一键：{3:N0}\n{4}",
+                    analysis.SelectedDisplayName,
+                    mode,
+                    analysis.SelectedOverlapRate,
+                    analysis.MatchedKeyCount,
+                    analysis.SelectionReason);
+            }
+
+            return string.Format(
+                "当前主键：{0}（{1}）\n左侧非空率：{2:P1}；右侧非空率：{3:P1}；左侧唯一率：{4:P1}；右侧唯一率：{5:P1}\n两表重合率：{6:P1}；匹配唯一键：{7:N0}\n{8}",
+                analysis.SelectedDisplayName,
+                mode,
+                selected.SourceCoverageRate,
+                selected.DestinationCoverageRate,
+                selected.SourceUniqueRate,
+                selected.DestinationUniqueRate,
+                selected.OverlapRate,
+                selected.OverlapCount,
+                analysis.SelectionReason);
         }
     }
 }
