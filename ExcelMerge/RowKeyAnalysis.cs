@@ -44,12 +44,33 @@ namespace ExcelMerge
         public RowKeySelectionMode SelectionMode { get; set; }
         public IList<string> SelectedColumnNames { get; set; }
         public IList<RowKeyCandidateAnalysis> Candidates { get; set; }
+        public RowKeyCandidateAnalysis SelectedAnalysis { get; set; }
         public double SelectedScore { get; set; }
         public double SelectedOverlapRate { get; set; }
         public int MatchedKeyCount { get; set; }
         public string SelectionReason { get; set; }
         public bool HasSelectedKey { get { return SelectedColumnNames != null && SelectedColumnNames.Count > 0; } }
         public string SelectedDisplayName { get { return HasSelectedKey ? string.Join(" + ", SelectedColumnNames) : string.Empty; } }
+
+        public double SelectedSourceCoverageRate
+        {
+            get { return SelectedAnalysis == null ? 0 : SelectedAnalysis.SourceCoverageRate; }
+        }
+
+        public double SelectedDestinationCoverageRate
+        {
+            get { return SelectedAnalysis == null ? 0 : SelectedAnalysis.DestinationCoverageRate; }
+        }
+
+        public double SelectedSourceUniqueRate
+        {
+            get { return SelectedAnalysis == null ? 0 : SelectedAnalysis.SourceUniqueRate; }
+        }
+
+        public double SelectedDestinationUniqueRate
+        {
+            get { return SelectedAnalysis == null ? 0 : SelectedAnalysis.DestinationUniqueRate; }
+        }
     }
 
     public static class RowKeySelectionRuntime
