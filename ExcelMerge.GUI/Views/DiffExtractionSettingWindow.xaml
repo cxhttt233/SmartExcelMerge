@@ -134,7 +134,7 @@
               </Grid.ColumnDefinitions>
               <Label Grid.Column="0"
                      VerticalAlignment="Center"
-                     Content="Smart Table Diff"/>
+                     Content="智能表格对比（按表头和行标识对齐）"/>
               <CheckBox Grid.Column="1"
                         VerticalAlignment="Center"
                         IsChecked="{Binding Setting.UseSmartTableDiff}"/>

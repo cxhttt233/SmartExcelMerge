@@ -171,7 +171,7 @@
             <Border BorderThickness="0.2" BorderBrush="Gray"
                     Grid.Row="0" Grid.Column="3"/>
 
-            <Label Content="{Binding AddedColumnCount}" ContentStringFormat="Added Columns({0})"
+            <Label Content="{Binding AddedColumnCount}" ContentStringFormat="新增列（{0}）"
                    Grid.Row="0" Grid.Column="4"
                    HorizontalAlignment="Center"
                    />
@@ -179,7 +179,7 @@
             <Border BorderThickness="0.2" BorderBrush="Gray"
                     Grid.Row="0" Grid.Column="4"/>
 
-            <Label Content="{Binding RemovedColumnCount}" ContentStringFormat="Removed Columns({0})"
+            <Label Content="{Binding RemovedColumnCount}" ContentStringFormat="删除列（{0}）"
                    Grid.Row="0" Grid.Column="5"
                    HorizontalAlignment="Center"
                    />
@@ -266,13 +266,13 @@
                     Grid.Row="1" Grid.Column="5"/>
           </Grid>
 
-          <GroupBox Header="Edit Dst (编辑右侧表格)" Margin="10,0,0,0">
+          <GroupBox Header="编辑修改后表格" Margin="10,0,0,0">
             <StackPanel Orientation="Horizontal">
               <Label Content="{Binding EditStatusText}" Margin="3" VerticalAlignment="Center"/>
-              <Button x:Name="SaveDstEditButton" Content="Save (保存修改)" Margin="3" Padding="5,2"
+              <Button x:Name="SaveDstEditButton" Content="保存修改" Margin="3" Padding="5,2"
                       Click="SaveDstEditButton_Click"
                       IsEnabled="{Binding HasUnsavedEdits}"/>
-              <Button x:Name="DiscardDstEditButton" Content="Discard (放弃修改)" Margin="3" Padding="5,2"
+              <Button x:Name="DiscardDstEditButton" Content="放弃修改" Margin="3" Padding="5,2"
                       Click="DiscardDstEditButton_Click"
                       IsEnabled="{Binding HasUnsavedEdits}"/>
             </StackPanel>
@@ -367,7 +367,7 @@
           <MenuItem Header="{x:Static props:Resources.ContextMenu_CopyAsTsv}" Click="CopyAsTsv_Click" InputGestureText="Ctrl + c"/>
           <MenuItem Header="{x:Static props:Resources.ContextMenu_CopyAsCsv}" Click="CopyAsCsv_Click" InputGestureText="Ctrl + C"/>
           <Separator/>
-          <MenuItem Header="Copy Row as TSV (复制整行)" Click="CopySrcRowsAsTsv_Click"/>
+          <MenuItem Header="复制整行（TSV）" Click="CopySrcRowsAsTsv_Click"/>
         </ContextMenu>
       </fg:FastGridControl.ContextMenu>
 
@@ -411,11 +411,11 @@
           <MenuItem Header="{x:Static props:Resources.ContextMenu_CopyAsTsv}" Click="CopyAsTsv_Click" InputGestureText="Ctrl + c"/>
           <MenuItem Header="{x:Static props:Resources.ContextMenu_CopyAsCsv}" Click="CopyAsCsv_Click" InputGestureText="Ctrl + C"/>
           <Separator/>
-          <MenuItem Header="Copy Row as TSV (复制整行)" Click="CopyDstRowsAsTsv_Click"/>
-          <MenuItem Header="Insert Row Above (上方插入空行)" Click="InsertDstRowAbove_Click"/>
-          <MenuItem Header="Insert Row Below (下方插入空行)" Click="InsertDstRowBelow_Click"/>
-          <MenuItem Header="Insert Copied Rows Below (下方插入粘贴复制行)" Click="InsertCopiedRowsBelow_Click"/>
-          <MenuItem Header="Delete Row (删除行)" Click="DeleteDstRow_Click"/>
+          <MenuItem Header="复制整行（TSV）" Click="CopyDstRowsAsTsv_Click"/>
+          <MenuItem Header="在上方插入空行" Click="InsertDstRowAbove_Click"/>
+          <MenuItem Header="在下方插入空行" Click="InsertDstRowBelow_Click"/>
+          <MenuItem Header="在下方插入已复制的行" Click="InsertCopiedRowsBelow_Click"/>
+          <MenuItem Header="删除行" Click="DeleteDstRow_Click"/>
           <!--<MenuItem Header="{x:Static props:Resources.ContextMenu_BuildRowBaseLog}" Click="BuildRowBaseLog_Click"/>
                     <MenuItem Header="{x:Static props:Resources.ContextMenu_BuildColumnBaseLog}" Click="BuildColumnBaseLog_Click"/>-->
         </ContextMenu>
