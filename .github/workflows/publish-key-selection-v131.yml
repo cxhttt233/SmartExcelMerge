@@ -1,0 +1,92 @@
+name: Publish key selection v1.3.1
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/publish-key-selection-v131.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-release:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout fixed feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/key-selection-analysis
+          fetch-depth: 0
+
+      - name: Set up NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore packages
+        run: nuget restore ExcelMerge.sln
+
+      - name: Build GUI Release
+        run: msbuild ExcelMerge.GUI\ExcelMerge.GUI.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /m
+
+      - name: Build regression tests
+        run: msbuild ExcelMerge.RegressionTests\ExcelMerge.RegressionTests.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /m
+
+      - name: Run regression tests
+        shell: pwsh
+        run: |
+          & .\ExcelMerge.RegressionTests\bin\Release\ExcelMerge.RegressionTests.exe 2>&1 | Tee-Object regression-test-output.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package portable build
+        shell: pwsh
+        run: |
+          Compress-Archive -Path ExcelMerge.GUI\bin\Release\* -DestinationPath SmartExcelMerge-key-selection-cn-v1.3.1.zip -Force
+          $hash = (Get-FileHash SmartExcelMerge-key-selection-cn-v1.3.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  SmartExcelMerge-key-selection-cn-v1.3.1.zip" | Set-Content SHA256SUMS.txt -Encoding ascii
+          @'
+          ## SmartExcelMerge 中文主键选择版 v1.3.1
+
+          修复点击“主键分析”时因列宽类型转换导致的“指定的转换无效”异常。
+
+          功能包括：
+          - 自动主键分析及选择原因展示；
+          - 手动选择单主键；
+          - 手动选择联合主键；
+          - 主键改变后重新比较；
+          - 简体中文界面。
+
+          本次发布已通过六项自动回归测试，其中新增“主键分析窗口创建”测试，防止该点击崩溃再次出现。
+
+          使用方法：解压 ZIP，运行 `ExcelMerge.GUI.exe`。请保留目录内全部 DLL 和资源文件。
+          '@ | Set-Content release-notes.md -Encoding utf8
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'v1.3.1-cn-key-selection'
+          $sha = git rev-parse HEAD
+          gh release create $tag `
+            SmartExcelMerge-key-selection-cn-v1.3.1.zip `
+            SHA256SUMS.txt `
+            regression-test-output.txt `
+            --target $sha `
+            --title 'SmartExcelMerge 中文主键选择版 v1.3.1' `
+            --notes-file release-notes.md `
+            --latest
+
+      - name: Record successful release
+        shell: pwsh
+        run: |
+          "v1.3.1-cn-key-selection released successfully at $(Get-Date -Format o)" | Set-Content RELEASE-KEY-SELECTION-v1.3.1.txt -Encoding utf8
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add RELEASE-KEY-SELECTION-v1.3.1.txt
+          git commit -m "chore: record v1.3.1 key selection release"
+          git push origin HEAD:agent/key-selection-analysis
