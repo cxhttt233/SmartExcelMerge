@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,6 +15,7 @@ namespace ExcelMerge
             DstRowHeaderIndex = -1;
             SrcRowHeaderName = string.Empty;
             DstRowHeaderName = string.Empty;
+            ManualRowKeyNames = new List<string>();
         }
 
         public int SrcSheetIndex { get; set; }
@@ -26,5 +27,7 @@ namespace ExcelMerge
         public int DstRowHeaderIndex { get; set; }
         public string SrcRowHeaderName { get; set; }
         public string DstRowHeaderName { get; set; }
+        public IList<string> ManualRowKeyNames { get; set; }
+        public RowKeyAnalysis RowKeyAnalysis { get; set; }
     }
 }
