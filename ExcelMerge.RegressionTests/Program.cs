@@ -52,6 +52,7 @@ namespace ExcelMerge.RegressionTests
                 config).CreateSummary();
             Assert(summary.ModifiedRowCount == 1 && summary.AddedRowCount == 0 && summary.RemovedRowCount == 0, "auto pairing");
             Assert(config.RowKeyAnalysis.SelectedDisplayName == "ID", "auto ID");
+            Assert(config.RowKeyAnalysis.SelectedAnalysis != null, "auto analysis retained");
         }
 
         private static void Single()
@@ -65,6 +66,11 @@ namespace ExcelMerge.RegressionTests
                 config).CreateSummary();
             Assert(summary.AddedRowCount == 0 && summary.RemovedRowCount == 0, "manual pairing");
             Assert(config.RowKeyAnalysis.SelectionMode == RowKeySelectionMode.Manual, "manual mode");
+            Assert(config.RowKeyAnalysis.SelectedAnalysis != null, "manual analysis retained");
+            Assert(config.RowKeyAnalysis.SelectedAnalysis.SourceUniqueRate == 1, "manual source unique");
+            Assert(config.RowKeyAnalysis.SelectedAnalysis.DestinationUniqueRate == 1, "manual destination unique");
+            Assert(config.RowKeyAnalysis.SelectedAnalysis.OverlapRate == 1, "manual overlap");
+            Assert(config.RowKeyAnalysis.SelectedAnalysis.OverlapCount == 2, "manual match count");
         }
 
         private static void Composite()
@@ -78,6 +84,11 @@ namespace ExcelMerge.RegressionTests
                 config).CreateSummary();
             Assert(summary.ModifiedRowCount == 1 && summary.AddedRowCount == 0 && summary.RemovedRowCount == 0, "composite pairing");
             Assert(config.RowKeyAnalysis.SelectedColumnNames.Count == 2, "composite selected");
+            Assert(config.RowKeyAnalysis.SelectedAnalysis != null, "composite analysis retained");
+            Assert(config.RowKeyAnalysis.SelectedAnalysis.SourceUniqueRate == 1, "composite source unique");
+            Assert(config.RowKeyAnalysis.SelectedAnalysis.DestinationUniqueRate == 1, "composite destination unique");
+            Assert(config.RowKeyAnalysis.SelectedAnalysis.OverlapRate == 1, "composite overlap");
+            Assert(config.RowKeyAnalysis.SelectedAnalysis.OverlapCount == 2, "composite match count");
         }
 
         private static void Analysis()
@@ -103,30 +114,30 @@ namespace ExcelMerge.RegressionTests
 
         private static void KeyAnalysisWindowSmoke()
         {
+            var selectedAnalysis = new RowKeyCandidateAnalysis
+            {
+                ColumnNames = new List<string> { "ID" },
+                SourceCoverageRate = 1,
+                DestinationCoverageRate = 1,
+                SourceUniqueRate = 1,
+                DestinationUniqueRate = 1,
+                OverlapRate = 1,
+                OverlapCount = 2,
+                Score = 12,
+                Reason = "字段名和唯一性均符合"
+            };
             var analysis = new RowKeyAnalysis
             {
-                SelectionMode = RowKeySelectionMode.Automatic,
+                SelectionMode = RowKeySelectionMode.Manual,
                 SelectedColumnNames = new List<string> { "ID" },
+                SelectedAnalysis = selectedAnalysis,
                 SelectedOverlapRate = 1,
                 MatchedKeyCount = 2,
-                SelectionReason = "测试自动主键",
-                Candidates = new List<RowKeyCandidateAnalysis>
-                {
-                    new RowKeyCandidateAnalysis
-                    {
-                        ColumnNames = new List<string> { "ID" },
-                        SourceCoverageRate = 1,
-                        DestinationCoverageRate = 1,
-                        SourceUniqueRate = 1,
-                        DestinationUniqueRate = 1,
-                        OverlapRate = 1,
-                        Score = 12,
-                        Reason = "字段名和唯一性均符合"
-                    }
-                }
+                SelectionReason = "测试手动主键",
+                Candidates = new List<RowKeyCandidateAnalysis> { selectedAnalysis }
             };
 
-            var window = new KeyAnalysisWindow(analysis, new string[0]);
+            var window = new KeyAnalysisWindow(analysis, new[] { "ID" });
             Assert(window.Title == "主键分析与选择", "window construction");
         }
 
