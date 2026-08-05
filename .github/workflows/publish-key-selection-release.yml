@@ -1,0 +1,98 @@
+name: Publish SmartExcelMerge key selection release
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/publish-key-selection-release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-release:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout key selection branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/key-selection-analysis
+          fetch-depth: 0
+
+      - name: Set up NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore packages
+        run: nuget restore ExcelMerge.sln
+
+      - name: Build GUI Release
+        run: msbuild ExcelMerge.GUI\ExcelMerge.GUI.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /m
+
+      - name: Build regression tests
+        run: msbuild ExcelMerge.RegressionTests\ExcelMerge.RegressionTests.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /m
+
+      - name: Run regression tests
+        shell: pwsh
+        run: |
+          & .\ExcelMerge.RegressionTests\bin\Release\ExcelMerge.RegressionTests.exe 2>&1 | Tee-Object regression-test-output.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package portable build
+        shell: pwsh
+        run: |
+          $zip = 'SmartExcelMerge-key-selection-cn.zip'
+          Compress-Archive -Path .\ExcelMerge.GUI\bin\Release\* -DestinationPath $zip -Force
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $zip" | Set-Content 'SHA256SUMS.txt' -Encoding ascii
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'v1.3.0-cn-key-selection'
+          $title = 'SmartExcelMerge 中文主键选择版'
+          $notes = @'
+          基于 SmartExcelMerge 汉化版增加：
+
+          - 自动分析并显示当前主键、候选字段和选择原因
+          - 支持手动选择单主键
+          - 支持多字段联合主键
+          - 切换主键后自动重新比较
+          - 保持原界面风格，采用低侵入方式增加“行匹配”区域
+
+          已通过 Windows Release 编译及以下回归测试：
+
+          - 自动主键匹配
+          - 手动单主键匹配
+          - 联合主键匹配
+          - 主键分析结果展示
+          - 无效手动主键安全回退
+
+          下载 `SmartExcelMerge-key-selection-cn.zip`，解压后运行 `ExcelMerge.GUI.exe`。
+          '@
+
+          gh release create $tag `
+            'SmartExcelMerge-key-selection-cn.zip' `
+            'SHA256SUMS.txt' `
+            'regression-test-output.txt' `
+            --repo $env:GITHUB_REPOSITORY `
+            --target 'agent/key-selection-analysis' `
+            --title $title `
+            --notes $notes `
+            --latest
+
+      - name: Record release success
+        shell: pwsh
+        run: |
+          "v1.3.0-cn-key-selection released at $(Get-Date -Format o)" | Set-Content RELEASE-KEY-SELECTION.txt -Encoding ascii
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add RELEASE-KEY-SELECTION.txt
+          git commit -m 'chore: record key selection release'
+          git push origin HEAD:agent/key-selection-analysis
