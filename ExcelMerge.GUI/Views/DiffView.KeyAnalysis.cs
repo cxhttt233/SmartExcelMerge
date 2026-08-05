@@ -10,7 +10,8 @@ namespace ExcelMerge.GUI.Views
     {
         private DispatcherTimer rowKeyTimer;
         private RowKeyAnalysis displayedAnalysis;
-        private TextBlock rowKeySummaryText;
+        private TextBlock rowKeyPrimaryText;
+        private TextBlock rowKeyDetailText;
 
         protected override void OnInitialized(EventArgs e)
         {
@@ -20,38 +21,59 @@ namespace ExcelMerge.GUI.Views
 
         private void InitializeRowKeyPanel()
         {
-            if (rowKeySummaryText != null || ToolExpander == null)
+            if (rowKeyPrimaryText != null || ToolExpander == null)
                 return;
 
             var headerPanel = ToolExpander.Header as WrapPanel;
             if (headerPanel == null)
                 return;
 
-            rowKeySummaryText = new TextBlock
+            rowKeyPrimaryText = new TextBlock
             {
-                Text = "主键：自动分析",
-                Margin = new Thickness(5, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                MaxWidth = 260,
+                Text = "当前主键：正在分析",
+                FontWeight = FontWeights.SemiBold,
+                MaxWidth = 405,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
 
+            rowKeyDetailText = new TextBlock
+            {
+                Text = "等待比较结果",
+                FontSize = 11,
+                Foreground = SystemColors.GrayTextBrush,
+                Margin = new Thickness(0, 1, 0, 0),
+                MaxWidth = 405,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+
+            var textPanel = new StackPanel
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5, 1, 8, 1)
+            };
+            textPanel.Children.Add(rowKeyPrimaryText);
+            textPanel.Children.Add(rowKeyDetailText);
+
             var button = new Button
             {
-                Content = "主键分析...",
+                Content = "选择/分析...",
                 Margin = new Thickness(3),
-                Padding = new Thickness(5, 2, 5, 2)
+                Padding = new Thickness(5, 2, 5, 2),
+                VerticalAlignment = VerticalAlignment.Center
             };
             button.Click += RowKeyAnalysisButton_Click;
+            DockPanel.SetDock(button, Dock.Right);
 
-            var content = new StackPanel { Orientation = Orientation.Horizontal };
-            content.Children.Add(rowKeySummaryText);
+            var content = new DockPanel { LastChildFill = true };
             content.Children.Add(button);
+            content.Children.Add(textPanel);
 
             var group = new GroupBox
             {
                 Header = "行匹配",
                 Margin = new Thickness(10, 0, 0, 0),
+                MinWidth = 390,
+                MaxWidth = 560,
                 Content = content
             };
 
@@ -66,7 +88,8 @@ namespace ExcelMerge.GUI.Views
 
         private void RefreshRowKeySummary()
         {
-            if (rowKeySummaryText == null || SrcSheetCombobox.SelectedIndex < 0 || DstSheetCombobox.SelectedIndex < 0)
+            if (rowKeyPrimaryText == null || rowKeyDetailText == null
+                || SrcSheetCombobox.SelectedIndex < 0 || DstSheetCombobox.SelectedIndex < 0)
                 return;
 
             var analysis = RowKeySelectionRuntime.GetAnalysis(SrcSheetCombobox.SelectedIndex, DstSheetCombobox.SelectedIndex);
@@ -74,16 +97,67 @@ namespace ExcelMerge.GUI.Views
                 return;
 
             displayedAnalysis = analysis;
-            if (analysis == null || !analysis.HasSelectedKey)
+            if (analysis == null)
             {
-                rowKeySummaryText.Text = "主键：自动分析";
-                rowKeySummaryText.ToolTip = analysis == null ? null : analysis.SelectionReason;
+                rowKeyPrimaryText.Text = "当前主键：正在分析";
+                rowKeyDetailText.Text = "等待比较结果";
+                rowKeyPrimaryText.ToolTip = null;
+                rowKeyDetailText.ToolTip = null;
+                return;
+            }
+
+            if (!analysis.HasSelectedKey)
+            {
+                rowKeyPrimaryText.Text = "当前主键：未固定";
+                rowKeyDetailText.Text = "匹配方式：智能相似度匹配";
+                rowKeyPrimaryText.ToolTip = analysis.SelectionReason;
+                rowKeyDetailText.ToolTip = analysis.SelectionReason;
                 return;
             }
 
             var mode = analysis.SelectionMode == RowKeySelectionMode.Manual ? "手动" : "自动";
-            rowKeySummaryText.Text = string.Format("{0}：{1}（重合 {2:P0}）", mode, analysis.SelectedDisplayName, analysis.SelectedOverlapRate);
-            rowKeySummaryText.ToolTip = analysis.SelectionReason;
+            rowKeyPrimaryText.Text = string.Format("当前主键：{0}（{1}）", analysis.SelectedDisplayName, mode);
+
+            var selected = analysis.SelectedAnalysis;
+            if (selected == null)
+            {
+                rowKeyDetailText.Text = string.Format("重合率 {0:P1}｜匹配 {1:N0} 条", analysis.SelectedOverlapRate, analysis.MatchedKeyCount);
+            }
+            else
+            {
+                rowKeyDetailText.Text = string.Format(
+                    "唯一率 左 {0:P1} / 右 {1:P1}｜重合率 {2:P1}｜匹配 {3:N0} 条",
+                    selected.SourceUniqueRate,
+                    selected.DestinationUniqueRate,
+                    selected.OverlapRate,
+                    selected.OverlapCount);
+            }
+
+            var tooltip = BuildRowKeyTooltip(analysis);
+            rowKeyPrimaryText.ToolTip = tooltip;
+            rowKeyDetailText.ToolTip = tooltip;
+        }
+
+        private static string BuildRowKeyTooltip(RowKeyAnalysis analysis)
+        {
+            if (analysis == null)
+                return string.Empty;
+
+            if (!analysis.HasSelectedKey || analysis.SelectedAnalysis == null)
+                return analysis.SelectionReason;
+
+            var selected = analysis.SelectedAnalysis;
+            return string.Format(
+                "当前主键：{0}\n模式：{1}\n左侧非空率：{2:P1}\n右侧非空率：{3:P1}\n左侧唯一率：{4:P1}\n右侧唯一率：{5:P1}\n两表重合率：{6:P1}\n匹配唯一键：{7:N0}\n{8}",
+                analysis.SelectedDisplayName,
+                analysis.SelectionMode == RowKeySelectionMode.Manual ? "手动" : "自动",
+                selected.SourceCoverageRate,
+                selected.DestinationCoverageRate,
+                selected.SourceUniqueRate,
+                selected.DestinationUniqueRate,
+                selected.OverlapRate,
+                selected.OverlapCount,
+                analysis.SelectionReason);
         }
 
         private void RowKeyAnalysisButton_Click(object sender, RoutedEventArgs e)
