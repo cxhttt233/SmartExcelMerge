@@ -62,10 +62,20 @@ namespace ExcelMerge.GUI.Views
             auto.Checked += (s,e) => grid.IsEnabled=false; manual.Checked += (s,e) => grid.IsEnabled=true; grid.IsEnabled = selectedSet.Count > 0;
         }
 
-        private void Add(string header, string property, object width)
+        private void Add(string header, string property, double width)
         {
-            grid.Columns.Add(new DataGridTextColumn { Header=header, Binding=new Binding(property), IsReadOnly=true,
-                Width = width is double ? new DataGridLength((double)width) : (DataGridLength)width });
+            Add(header, property, new DataGridLength(width));
+        }
+
+        private void Add(string header, string property, DataGridLength width)
+        {
+            grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = header,
+                Binding = new Binding(property),
+                IsReadOnly = true,
+                Width = width
+            });
         }
 
         private void Apply(object sender, RoutedEventArgs e)
