@@ -41,6 +41,14 @@ namespace ExcelMerge
             config.SrcHeaderIndex = headers.Item1;
             config.DstHeaderIndex = headers.Item2;
 
+            RowKeySelectionRuntime.SetPreviewContext(
+                config.SrcSheetIndex,
+                config.DstSheetIndex,
+                src,
+                dst,
+                config.SrcHeaderIndex,
+                config.DstHeaderIndex);
+
             var pairs = GetColumnPairs(src, dst, config.SrcHeaderIndex, config.DstHeaderIndex);
             var manual = RowKeySelectionRuntime.GetManualSelection(config.SrcSheetIndex, config.DstSheetIndex).ToList();
             var analysis = new RowKeyAnalysis
@@ -82,7 +90,7 @@ namespace ExcelMerge
 
             var selectedAnalysis = Analyze(src, dst, config, selected);
             if (manual.Count > 0)
-                selectedAnalysis.Reason = selected.Count == 1 ? "手动单主键分析" : "手动联合主键分析";
+                selectedAnalysis.Reason = BuildManualPreviewReason(selectedAnalysis, selected.Count);
 
             analysis.SelectedAnalysis = selectedAnalysis;
             analysis.SelectedColumnNames = selected.Select(p => p.Name).ToList();
@@ -90,13 +98,7 @@ namespace ExcelMerge
             analysis.SelectedOverlapRate = selectedAnalysis.OverlapRate;
             analysis.MatchedKeyCount = selectedAnalysis.OverlapCount;
 
-            var usable = selectedAnalysis.SourceCoverageRate > 0
-                && selectedAnalysis.DestinationCoverageRate > 0
-                && selectedAnalysis.OverlapCount > 0
-                && selectedAnalysis.SourceUniqueRate >= UniqueThreshold
-                && selectedAnalysis.DestinationUniqueRate >= UniqueThreshold;
-
-            if (!usable)
+            if (!selectedAnalysis.IsUsableManualKey)
             {
                 analysis.SelectedColumnNames = new List<string>();
                 analysis.SelectionReason = string.Format(
@@ -131,6 +133,47 @@ namespace ExcelMerge
             config.RowKeyAnalysis = analysis;
             RowKeySelectionRuntime.SetAnalysis(config.SrcSheetIndex, config.DstSheetIndex, analysis);
             return result;
+        }
+
+        internal static RowKeyCandidateAnalysis AnalyzeSelection(
+            ExcelSheet src,
+            ExcelSheet dst,
+            int srcHeaderIndex,
+            int dstHeaderIndex,
+            IEnumerable<string> names)
+        {
+            var selectedNames = (names ?? Enumerable.Empty<string>())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (selectedNames.Count == 0)
+                return null;
+
+            var pairs = GetColumnPairs(src, dst, srcHeaderIndex, dstHeaderIndex);
+            var selected = new List<ColumnPair>();
+            foreach (var name in selectedNames)
+            {
+                var pair = pairs.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (pair == null)
+                {
+                    return new RowKeyCandidateAnalysis
+                    {
+                        ColumnNames = selectedNames,
+                        Reason = "所选字段未同时出现在左右表中，无法预览。"
+                    };
+                }
+                selected.Add(pair);
+            }
+
+            var config = new ExcelSheetDiffConfig
+            {
+                SrcHeaderIndex = srcHeaderIndex,
+                DstHeaderIndex = dstHeaderIndex
+            };
+            var preview = Analyze(src, dst, config, selected);
+            preview.Reason = BuildManualPreviewReason(preview, selected.Count);
+            return preview;
         }
 
         internal static void RemoveSyntheticColumn(ExcelSheetDiff diff, int srcIndex, int dstIndex)
@@ -213,11 +256,32 @@ namespace ExcelMerge
                 && result.SourceUniqueRate >= UniqueThreshold
                 && result.DestinationUniqueRate >= UniqueThreshold
                 && result.OverlapRate >= OverlapThreshold && min >= 2;
+            result.IsUsableManualKey = result.SourceCoverageRate > 0
+                && result.DestinationCoverageRate > 0
+                && result.SourceUniqueRate >= UniqueThreshold
+                && result.DestinationUniqueRate >= UniqueThreshold
+                && result.OverlapCount > 0;
             if (result.SourceCoverageRate < CoverageThreshold || result.DestinationCoverageRate < CoverageThreshold) result.Reason = "非空率不足";
             else if (result.SourceUniqueRate < UniqueThreshold || result.DestinationUniqueRate < UniqueThreshold) result.Reason = "唯一率不足";
             else if (result.OverlapRate < OverlapThreshold || min < 2) result.Reason = "两表重合率不足";
             else result.Reason = result.IsPreferredHeader ? "有效候选，字段名符合ID/编码特征" : "有效候选";
             return result;
+        }
+
+        private static string BuildManualPreviewReason(RowKeyCandidateAnalysis result, int columnCount)
+        {
+            var prefix = columnCount > 1 ? "联合主键" : "单主键";
+            if (result.SourceCoverageRate <= 0 || result.DestinationCoverageRate <= 0)
+                return prefix + "不可用：至少一侧没有所有字段均非空的有效键。";
+            if (result.SourceUniqueRate < UniqueThreshold || result.DestinationUniqueRate < UniqueThreshold)
+                return prefix + "不建议使用：组合后的唯一率不足95%，会产生重复键。";
+            if (result.OverlapCount <= 0)
+                return prefix + "不可用：左右表没有共同键值。";
+            if (result.SourceCoverageRate < CoverageThreshold || result.DestinationCoverageRate < CoverageThreshold)
+                return prefix + "可用，但组合非空率较低，较多记录将无法按主键配对。";
+            if (result.OverlapRate < OverlapThreshold)
+                return prefix + "可用，但两表重合率较低，请确认新增和删除记录是否符合预期。";
+            return prefix + "可用：唯一性和两表重合情况满足匹配要求。";
         }
 
         private static Profile BuildProfile(ExcelSheet sheet, int header, IList<int> columns)
