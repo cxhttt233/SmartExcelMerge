@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
 using ExcelMerge.GUI.Views;
 
 namespace ExcelMerge.RegressionTests
@@ -139,6 +141,30 @@ namespace ExcelMerge.RegressionTests
 
             var window = new KeyAnalysisWindow(analysis, new[] { "ID" });
             Assert(window.Title == "主键分析与选择", "window construction");
+
+            var buttons = LogicalDescendants<Button>(window).ToList();
+            Assert(buttons.Any(button => Equals(button.Content, "确定") && button.IsDefault), "confirm button");
+            Assert(buttons.Any(button => Equals(button.Content, "取消") && button.IsCancel), "cancel button");
+            Assert(!buttons.Any(button => Convert.ToString(button.Content).Contains("重新比较")
+                || Convert.ToString(button.Content).Contains("重新分析")
+                || Convert.ToString(button.Content).Contains("应用并")), "no redundant action button");
+        }
+
+        private static IEnumerable<T> LogicalDescendants<T>(DependencyObject root) where T : DependencyObject
+        {
+            foreach (var child in LogicalTreeHelper.GetChildren(root))
+            {
+                var dependencyObject = child as DependencyObject;
+                if (dependencyObject == null)
+                    continue;
+
+                var typed = dependencyObject as T;
+                if (typed != null)
+                    yield return typed;
+
+                foreach (var descendant in LogicalDescendants<T>(dependencyObject))
+                    yield return descendant;
+            }
         }
 
         private static void Run(string name, Action test)
