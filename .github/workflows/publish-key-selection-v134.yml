@@ -1,0 +1,84 @@
+name: Publish key selection v1.3.4
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/publish-key-selection-v134.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-release:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/key-selection-analysis
+          fetch-depth: 0
+
+      - name: Set up NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore packages
+        run: nuget restore ExcelMerge.sln
+
+      - name: Build GUI Release
+        run: msbuild ExcelMerge.GUI\ExcelMerge.GUI.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /m
+
+      - name: Build regression tests
+        run: msbuild ExcelMerge.RegressionTests\ExcelMerge.RegressionTests.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /m
+
+      - name: Run regression tests
+        shell: pwsh
+        run: |
+          & .\ExcelMerge.RegressionTests\bin\Release\ExcelMerge.RegressionTests.exe 2>&1 | Tee-Object regression-test-output.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package portable build
+        shell: pwsh
+        run: |
+          Compress-Archive -Path .\ExcelMerge.GUI\bin\Release\* -DestinationPath .\SmartExcelMerge-key-selection-cn-v1.3.4.zip -Force
+          $hash = (Get-FileHash .\SmartExcelMerge-key-selection-cn-v1.3.4.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  SmartExcelMerge-key-selection-cn-v1.3.4.zip" | Set-Content .\SHA256SUMS.txt -Encoding ascii
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          @'
+          ## 中文主键选择版 v1.3.4
+
+          - 勾选字段时即时计算单主键或联合主键指标
+          - 联合主键预览显示联合非空率、联合唯一率、两表重合率和匹配数量
+          - 无效组合会在确定前给出原因并阻止应用
+          - 点确定后才刷新主界面的左右表格
+          - Windows Release 编译及七项回归测试通过
+          '@ | Set-Content release-notes.md -Encoding utf8
+
+          gh release create v1.3.4-cn-key-selection `
+            --repo cxhttt233/SmartExcelMerge `
+            --target agent/key-selection-analysis `
+            --title "SmartExcelMerge 中文主键选择版 v1.3.4" `
+            --notes-file release-notes.md `
+            .\SmartExcelMerge-key-selection-cn-v1.3.4.zip `
+            .\SHA256SUMS.txt `
+            .\regression-test-output.txt
+
+      - name: Record successful release
+        shell: pwsh
+        run: |
+          "v1.3.4-cn-key-selection released successfully at $(Get-Date -Format o)" | Set-Content RELEASE-KEY-SELECTION-v1.3.4.txt -Encoding utf8
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add RELEASE-KEY-SELECTION-v1.3.4.txt
+          git commit -m "chore: record v1.3.4 release"
+          git push origin HEAD:agent/key-selection-analysis
