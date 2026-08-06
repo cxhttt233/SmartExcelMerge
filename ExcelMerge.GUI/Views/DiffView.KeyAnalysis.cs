@@ -54,18 +54,23 @@ namespace ExcelMerge.GUI.Views
             textPanel.Children.Add(rowKeyPrimaryText);
             textPanel.Children.Add(rowKeyDetailText);
 
-            var button = new Button
+            var changeButton = new Button
             {
-                Content = "选择/分析...",
-                Margin = new Thickness(3),
-                Padding = new Thickness(5, 2, 5, 2),
-                VerticalAlignment = VerticalAlignment.Center
+                Content = "更改",
+                Margin = new Thickness(0, 0, 6, 0),
+                Padding = new Thickness(3, 0, 3, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Background = System.Windows.Media.Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Foreground = SystemColors.HotTrackBrush,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = "选择自动、单字段或联合主键"
             };
-            button.Click += RowKeyAnalysisButton_Click;
-            DockPanel.SetDock(button, Dock.Right);
+            changeButton.Click += RowKeyAnalysisButton_Click;
+            DockPanel.SetDock(changeButton, Dock.Right);
 
             var content = new DockPanel { LastChildFill = true };
-            content.Children.Add(button);
+            content.Children.Add(changeButton);
             content.Children.Add(textPanel);
 
             var group = new GroupBox
@@ -180,6 +185,9 @@ namespace ExcelMerge.GUI.Views
 
             RowKeySelectionRuntime.SetManualSelection(srcIndex, dstIndex,
                 dialog.UseManualSelection ? dialog.SelectedColumns : Enumerable.Empty<string>());
+
+            rowKeyPrimaryText.Text = "当前主键：正在重新计算";
+            rowKeyDetailText.Text = "正在自动刷新表格对比结果";
             displayedAnalysis = null;
             ExecuteDiff();
             RefreshRowKeySummary();
