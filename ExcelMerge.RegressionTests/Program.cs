@@ -19,6 +19,7 @@ namespace ExcelMerge.RegressionTests
             Run("composite", Composite);
             Run("analysis", Analysis);
             Run("invalid fallback", Invalid);
+            Run("live composite preview", LiveCompositePreview);
             Run("key analysis window", KeyAnalysisWindowSmoke);
             Console.WriteLine(failures == 0 ? "All regression tests passed." : failures + " failed.");
             return failures == 0 ? 0 : 1;
@@ -114,33 +115,50 @@ namespace ExcelMerge.RegressionTests
             Assert(config.RowKeyAnalysis != null && !config.RowKeyAnalysis.HasSelectedKey, "fallback");
         }
 
+        private static void LiveCompositePreview()
+        {
+            RowKeySelectionRuntime.Clear();
+            var config = Config();
+            ExcelSheet.Diff(
+                Sheet(
+                    new[] { "Region", "Name", "Value" },
+                    new[] { "N", "Gate", "10" },
+                    new[] { "S", "Gate", "20" },
+                    new[] { "N", "Dam", "30" }),
+                Sheet(
+                    new[] { "Region", "Name", "Value" },
+                    new[] { "N", "Dam", "31" },
+                    new[] { "S", "Gate", "20" },
+                    new[] { "N", "Gate", "10" }),
+                config);
+
+            var preview = RowKeySelectionRuntime.AnalyzeSelection(0, 0, new[] { "Region", "Name" });
+            Assert(preview != null, "preview exists");
+            Assert(preview.ColumnNames.Count == 2, "preview composite columns");
+            Assert(preview.SourceCoverageRate == 1 && preview.DestinationCoverageRate == 1, "preview composite coverage");
+            Assert(preview.SourceUniqueRate == 1 && preview.DestinationUniqueRate == 1, "preview composite unique");
+            Assert(preview.OverlapRate == 1 && preview.OverlapCount == 3, "preview composite overlap");
+            Assert(preview.IsUsableManualKey, "preview usable");
+
+            var window = new KeyAnalysisWindow(config.RowKeyAnalysis, new[] { "Region", "Name" }, 0, 0);
+            Assert(window.PreviewSummaryText.Contains("联合主键预览"), "window composite title");
+            Assert(window.PreviewSummaryText.Contains("联合非空率"), "window composite coverage");
+            Assert(window.PreviewSummaryText.Contains("联合唯一率"), "window composite uniqueness");
+            Assert(window.PreviewSummaryText.Contains("匹配唯一键：3"), "window composite match count");
+        }
+
         private static void KeyAnalysisWindowSmoke()
         {
-            var selectedAnalysis = new RowKeyCandidateAnalysis
-            {
-                ColumnNames = new List<string> { "ID" },
-                SourceCoverageRate = 1,
-                DestinationCoverageRate = 1,
-                SourceUniqueRate = 1,
-                DestinationUniqueRate = 1,
-                OverlapRate = 1,
-                OverlapCount = 2,
-                Score = 12,
-                Reason = "字段名和唯一性均符合"
-            };
-            var analysis = new RowKeyAnalysis
-            {
-                SelectionMode = RowKeySelectionMode.Manual,
-                SelectedColumnNames = new List<string> { "ID" },
-                SelectedAnalysis = selectedAnalysis,
-                SelectedOverlapRate = 1,
-                MatchedKeyCount = 2,
-                SelectionReason = "测试手动主键",
-                Candidates = new List<RowKeyCandidateAnalysis> { selectedAnalysis }
-            };
+            RowKeySelectionRuntime.Clear();
+            var config = Config();
+            ExcelSheet.Diff(
+                Sheet(new[] { "ID", "Name" }, new[] { "1", "A" }, new[] { "2", "B" }),
+                Sheet(new[] { "ID", "Name" }, new[] { "1", "A" }, new[] { "2", "B2" }),
+                config);
 
-            var window = new KeyAnalysisWindow(analysis, new[] { "ID" });
+            var window = new KeyAnalysisWindow(config.RowKeyAnalysis, new[] { "ID" }, 0, 0);
             Assert(window.Title == "主键分析与选择", "window construction");
+            Assert(window.PreviewSummaryText.Contains("单主键预览"), "single preview visible");
 
             var buttons = LogicalDescendants<Button>(window).ToList();
             Assert(buttons.Any(button => Equals(button.Content, "确定") && button.IsDefault), "confirm button");
