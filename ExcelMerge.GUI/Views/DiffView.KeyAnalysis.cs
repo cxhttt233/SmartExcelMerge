@@ -179,7 +179,10 @@ namespace ExcelMerge.GUI.Views
                 return;
 
             var selected = RowKeySelectionRuntime.GetManualSelection(srcIndex, dstIndex);
-            var dialog = new KeyAnalysisWindow(analysis, selected) { Owner = Window.GetWindow(this) };
+            var dialog = new KeyAnalysisWindow(analysis, selected, srcIndex, dstIndex)
+            {
+                Owner = Window.GetWindow(this)
+            };
             if (dialog.ShowDialog() != true)
                 return;
 
