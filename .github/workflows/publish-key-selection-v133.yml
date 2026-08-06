@@ -1,0 +1,88 @@
+name: Publish key selection v1.3.3
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/publish-key-selection-v133.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-release:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/key-selection-analysis
+          fetch-depth: 0
+
+      - name: Set up NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore packages
+        run: nuget restore ExcelMerge.sln
+
+      - name: Build GUI Release
+        run: msbuild ExcelMerge.GUI\ExcelMerge.GUI.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /m
+
+      - name: Build regression tests
+        run: msbuild ExcelMerge.RegressionTests\ExcelMerge.RegressionTests.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /m
+
+      - name: Run regression tests
+        shell: pwsh
+        run: |
+          & .\ExcelMerge.RegressionTests\bin\Release\ExcelMerge.RegressionTests.exe 2>&1 | Tee-Object regression-test-output.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package portable build
+        shell: pwsh
+        run: |
+          $zip = 'SmartExcelMerge-key-selection-cn-v1.3.3.zip'
+          Compress-Archive -Path .\ExcelMerge.GUI\bin\Release\* -DestinationPath $zip -Force
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $zip" | Set-Content SHA256SUMS.txt -Encoding ascii
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'v1.3.3-cn-key-selection'
+          $notes = @'
+          ## 交互调整
+
+          - 当前主键继续在主界面常驻显示。
+          - 主界面的主键入口改为轻量的“更改”，不再与原有“重新比较”形成两个同等级按钮。
+          - 主键弹窗底部改为“确定 / 取消”。
+          - 勾选字段时自动切换到手动模式。
+          - 点“确定”后自动重新计算并刷新左右表格，无需再执行一次“重新比较”。
+          - 修正弹窗布局，确保操作按钮始终位于底部且可见。
+
+          Release 构建和回归测试均已通过。
+          '@
+          gh release create $tag `
+            --target agent/key-selection-analysis `
+            --title 'SmartExcelMerge 中文主键选择版 v1.3.3' `
+            --notes $notes `
+            SmartExcelMerge-key-selection-cn-v1.3.3.zip `
+            SHA256SUMS.txt `
+            regression-test-output.txt
+
+      - name: Record successful release
+        shell: pwsh
+        run: |
+          "v1.3.3-cn-key-selection released successfully at $(Get-Date -Format o)" | Set-Content RELEASE-KEY-SELECTION-v1.3.3.txt -Encoding utf8
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add RELEASE-KEY-SELECTION-v1.3.3.txt
+          git commit -m "chore: record v1.3.3 release"
+          git push origin HEAD:agent/key-selection-analysis
