@@ -12,7 +12,22 @@ namespace ExcelMerge.GUI.Views
     {
         private sealed class Item
         {
-            public bool Selected { get; set; }
+            private bool selected;
+
+            public Action SelectionChanged { get; set; }
+            public bool Selected
+            {
+                get { return selected; }
+                set
+                {
+                    if (selected == value)
+                        return;
+                    selected = value;
+                    if (SelectionChanged != null)
+                        SelectionChanged();
+                }
+            }
+
             public string Field { get; set; }
             public string SourceCoverage { get; set; }
             public string DestinationCoverage { get; set; }
@@ -23,23 +38,36 @@ namespace ExcelMerge.GUI.Views
             public string Reason { get; set; }
         }
 
+        private readonly RowKeyAnalysis analysis;
+        private readonly int srcSheetIndex;
+        private readonly int dstSheetIndex;
         private readonly RadioButton auto;
         private readonly RadioButton manual;
         private readonly DataGrid grid;
         private readonly List<Item> items;
+        private readonly TextBlock previewText;
+        private readonly Button confirm;
+
         public bool UseManualSelection { get; private set; }
         public IList<string> SelectedColumns { get; private set; }
+        public string PreviewSummaryText { get { return previewText == null ? string.Empty : previewText.Text; } }
 
-        public KeyAnalysisWindow(RowKeyAnalysis analysis, IEnumerable<string> selected)
+        public KeyAnalysisWindow(
+            RowKeyAnalysis analysis,
+            IEnumerable<string> selected,
+            int srcSheetIndex,
+            int dstSheetIndex)
         {
-            analysis = analysis ?? new RowKeyAnalysis();
+            this.analysis = analysis ?? new RowKeyAnalysis();
+            this.srcSheetIndex = srcSheetIndex;
+            this.dstSheetIndex = dstSheetIndex;
             var selectedSet = new HashSet<string>(selected ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
 
             Title = "主键分析与选择";
             Width = 980;
-            Height = 580;
+            Height = 650;
             MinWidth = 760;
-            MinHeight = 440;
+            MinHeight = 500;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             ShowInTaskbar = false;
 
@@ -54,7 +82,7 @@ namespace ExcelMerge.GUI.Views
             root.Children.Add(top);
             top.Children.Add(new TextBlock
             {
-                Text = Summary(analysis),
+                Text = Summary(this.analysis),
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 8),
                 Padding = new Thickness(8),
@@ -70,14 +98,29 @@ namespace ExcelMerge.GUI.Views
             };
             manual = new RadioButton
             {
-                Content = "手动选择（可勾选一个或多个字段）",
+                Content = "手动选择（勾选一个字段为单主键，多个字段为联合主键）",
                 IsChecked = selectedSet.Count > 0
             };
             modes.Children.Add(auto);
             modes.Children.Add(manual);
             top.Children.Add(modes);
 
-            items = analysis.Candidates.OrderByDescending(candidate => candidate.Score).Select(candidate => new Item
+            previewText = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                FontWeight = FontWeights.SemiBold
+            };
+            top.Children.Add(new Border
+            {
+                Margin = new Thickness(0, 8, 0, 0),
+                Padding = new Thickness(9),
+                BorderThickness = new Thickness(1),
+                BorderBrush = SystemColors.ActiveBorderBrush,
+                Background = SystemColors.ControlLightLightBrush,
+                Child = previewText
+            });
+
+            items = this.analysis.Candidates.OrderByDescending(candidate => candidate.Score).Select(candidate => new Item
             {
                 Selected = candidate.ColumnNames.Count == 1 && selectedSet.Contains(candidate.ColumnNames[0]),
                 Field = candidate.DisplayName,
@@ -90,6 +133,9 @@ namespace ExcelMerge.GUI.Views
                 Reason = candidate.Reason
             }).ToList();
 
+            foreach (var item in items)
+                item.SelectionChanged = OnSelectionChanged;
+
             grid = new DataGrid
             {
                 AutoGenerateColumns = false,
@@ -97,15 +143,14 @@ namespace ExcelMerge.GUI.Views
                 CanUserDeleteRows = false,
                 ItemsSource = items
             };
-            grid.BeginningEdit += (sender, args) =>
-            {
-                if (args.Column is DataGridCheckBoxColumn)
-                    manual.IsChecked = true;
-            };
             grid.Columns.Add(new DataGridCheckBoxColumn
             {
                 Header = "选择",
-                Binding = new Binding("Selected") { Mode = BindingMode.TwoWay },
+                Binding = new Binding("Selected")
+                {
+                    Mode = BindingMode.TwoWay,
+                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+                },
                 Width = 52
             });
             Add("字段", "Field", 150);
@@ -131,7 +176,7 @@ namespace ExcelMerge.GUI.Views
             DockPanel.SetDock(buttons, Dock.Right);
             bottom.Children.Add(buttons);
 
-            var confirm = new Button
+            confirm = new Button
             {
                 Content = "确定",
                 MinWidth = 72,
@@ -152,10 +197,83 @@ namespace ExcelMerge.GUI.Views
 
             bottom.Children.Add(new TextBlock
             {
-                Text = "勾选字段会自动切换到手动模式。点“确定”后，主界面会自动重新计算并刷新左右表格。",
+                Text = "上方预览会随勾选即时更新；确认后才会刷新主界面的左右表格。",
                 TextWrapping = TextWrapping.Wrap,
                 VerticalAlignment = VerticalAlignment.Center
             });
+
+            auto.Checked += (sender, args) =>
+            {
+                grid.IsEnabled = false;
+                UpdatePreview();
+            };
+            manual.Checked += (sender, args) =>
+            {
+                grid.IsEnabled = true;
+                UpdatePreview();
+            };
+            grid.IsEnabled = selectedSet.Count > 0;
+            UpdatePreview();
+        }
+
+        private void OnSelectionChanged()
+        {
+            if (items.Any(item => item.Selected))
+                manual.IsChecked = true;
+            UpdatePreview();
+        }
+
+        private void UpdatePreview()
+        {
+            if (previewText == null || confirm == null)
+                return;
+
+            if (auto.IsChecked == true)
+            {
+                confirm.IsEnabled = true;
+                previewText.Text = "自动方案（当前结果）\n" + CompactSummary(analysis.SelectedAnalysis, analysis.SelectedDisplayName, false);
+                return;
+            }
+
+            var selectedColumns = items.Where(item => item.Selected).Select(item => item.Field).ToList();
+            if (selectedColumns.Count == 0)
+            {
+                confirm.IsEnabled = false;
+                previewText.Text = "手动主键预览\n请勾选一个字段作为单主键，或勾选多个字段查看联合主键的组合指标。";
+                return;
+            }
+
+            var preview = RowKeySelectionRuntime.AnalyzeSelection(srcSheetIndex, dstSheetIndex, selectedColumns);
+            if (preview == null)
+            {
+                confirm.IsEnabled = false;
+                previewText.Text = "无法生成预览：当前比较数据尚未准备完成。";
+                return;
+            }
+
+            confirm.IsEnabled = preview.IsUsableManualKey;
+            previewText.Text = CompactSummary(preview, string.Join(" + ", selectedColumns), selectedColumns.Count > 1);
+        }
+
+        private static string CompactSummary(RowKeyCandidateAnalysis value, string displayName, bool composite)
+        {
+            if (value == null)
+                return "当前未选出可靠主键。";
+
+            var title = composite ? "联合主键预览" : "单主键预览";
+            var metricPrefix = composite ? "联合" : string.Empty;
+            return string.Format(
+                "{0}：{1}\n{2}非空率：左 {3:P1} / 右 {4:P1}\n{2}唯一率：左 {5:P1} / 右 {6:P1}\n两表重合率：{7:P1}｜匹配唯一键：{8:N0}\n结论：{9}",
+                title,
+                string.IsNullOrWhiteSpace(displayName) ? value.DisplayName : displayName,
+                metricPrefix,
+                value.SourceCoverageRate,
+                value.DestinationCoverageRate,
+                value.SourceUniqueRate,
+                value.DestinationUniqueRate,
+                value.OverlapRate,
+                value.OverlapCount,
+                value.Reason);
         }
 
         private void Add(string header, string property, double width)
@@ -181,11 +299,25 @@ namespace ExcelMerge.GUI.Views
 
             UseManualSelection = manual.IsChecked == true;
             SelectedColumns = items.Where(item => item.Selected).Select(item => item.Field).ToList();
-            if (UseManualSelection && SelectedColumns.Count == 0)
+            if (UseManualSelection)
             {
-                MessageBox.Show(this, "手动模式至少选择一个字段。", "主键选择",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
+                if (SelectedColumns.Count == 0)
+                {
+                    MessageBox.Show(this, "手动模式至少选择一个字段。", "主键选择",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var preview = RowKeySelectionRuntime.AnalyzeSelection(srcSheetIndex, dstSheetIndex, SelectedColumns);
+                if (preview == null || !preview.IsUsableManualKey)
+                {
+                    MessageBox.Show(this,
+                        preview == null ? "无法分析当前选择。" : preview.Reason,
+                        "主键选择",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
             }
 
             DialogResult = true;
