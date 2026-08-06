@@ -27,6 +27,7 @@ namespace ExcelMerge
         public int OverlapCount { get; set; }
         public double Score { get; set; }
         public bool IsValidAutomaticKey { get; set; }
+        public bool IsUsableManualKey { get; set; }
         public bool IsPreferredHeader { get; set; }
         public string Reason { get; set; }
         public string DisplayName { get { return string.Join(" + ", ColumnNames ?? new List<string>()); } }
@@ -73,11 +74,20 @@ namespace ExcelMerge
         }
     }
 
+    internal sealed class RowKeyPreviewContext
+    {
+        public ExcelSheet Source { get; set; }
+        public ExcelSheet Destination { get; set; }
+        public int SourceHeaderIndex { get; set; }
+        public int DestinationHeaderIndex { get; set; }
+    }
+
     public static class RowKeySelectionRuntime
     {
         private static readonly object Sync = new object();
         private static readonly Dictionary<string, List<string>> Manual = new Dictionary<string, List<string>>();
         private static readonly Dictionary<string, RowKeyAnalysis> Analyses = new Dictionary<string, RowKeyAnalysis>();
+        private static readonly Dictionary<string, RowKeyPreviewContext> PreviewContexts = new Dictionary<string, RowKeyPreviewContext>();
 
         private static string Key(int srcSheetIndex, int dstSheetIndex)
         {
@@ -117,14 +127,59 @@ namespace ExcelMerge
             }
         }
 
+        public static RowKeyCandidateAnalysis AnalyzeSelection(
+            int srcSheetIndex,
+            int dstSheetIndex,
+            IEnumerable<string> names)
+        {
+            RowKeyPreviewContext context;
+            lock (Sync)
+            {
+                if (!PreviewContexts.TryGetValue(Key(srcSheetIndex, dstSheetIndex), out context))
+                    return null;
+            }
+
+            return RowKeySelectionEngine.AnalyzeSelection(
+                context.Source,
+                context.Destination,
+                context.SourceHeaderIndex,
+                context.DestinationHeaderIndex,
+                names);
+        }
+
         internal static void SetAnalysis(int srcSheetIndex, int dstSheetIndex, RowKeyAnalysis analysis)
         {
             lock (Sync) Analyses[Key(srcSheetIndex, dstSheetIndex)] = analysis;
         }
 
+        internal static void SetPreviewContext(
+            int srcSheetIndex,
+            int dstSheetIndex,
+            ExcelSheet source,
+            ExcelSheet destination,
+            int sourceHeaderIndex,
+            int destinationHeaderIndex)
+        {
+            lock (Sync)
+            {
+                PreviewContexts[Key(srcSheetIndex, dstSheetIndex)] = new RowKeyPreviewContext
+                {
+                    Source = source,
+                    Destination = destination,
+                    SourceHeaderIndex = sourceHeaderIndex,
+                    DestinationHeaderIndex = destinationHeaderIndex
+                };
+            }
+        }
+
         public static void Clear()
         {
-            lock (Sync) { Manual.Clear(); Analyses.Clear(); }
+            lock (Sync)
+            {
+                Manual.Clear();
+                Analyses.Clear();
+                PreviewContexts.Clear();
+            }
         }
     }
 }
