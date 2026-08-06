@@ -34,39 +34,128 @@ namespace ExcelMerge.GUI.Views
         {
             analysis = analysis ?? new RowKeyAnalysis();
             var selectedSet = new HashSet<string>(selected ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
-            Title = "主键分析与选择"; Width = 980; Height = 580; MinWidth = 760; MinHeight = 440;
-            WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false;
-            var root = new DockPanel { Margin = new Thickness(12) }; Content = root;
-            var top = new StackPanel { Margin = new Thickness(0,0,0,8) }; DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
+
+            Title = "主键分析与选择";
+            Width = 980;
+            Height = 580;
+            MinWidth = 760;
+            MinHeight = 440;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            ShowInTaskbar = false;
+
+            var root = new Grid { Margin = new Thickness(12) };
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            Content = root;
+
+            var top = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+            Grid.SetRow(top, 0);
+            root.Children.Add(top);
             top.Children.Add(new TextBlock
             {
                 Text = Summary(analysis),
                 TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0,0,0,8),
+                Margin = new Thickness(0, 0, 0, 8),
                 Padding = new Thickness(8),
                 Background = SystemColors.ControlLightBrush
             });
+
             var modes = new StackPanel { Orientation = Orientation.Horizontal };
-            auto = new RadioButton { Content = "自动选择", IsChecked = selectedSet.Count == 0, Margin = new Thickness(0,0,16,0) };
-            manual = new RadioButton { Content = "手动选择（可勾选一个或多个字段）", IsChecked = selectedSet.Count > 0 };
-            modes.Children.Add(auto); modes.Children.Add(manual); top.Children.Add(modes);
-            items = analysis.Candidates.OrderByDescending(c => c.Score).Select(c => new Item {
-                Selected = c.ColumnNames.Count == 1 && selectedSet.Contains(c.ColumnNames[0]), Field = c.DisplayName,
-                SourceCoverage = c.SourceCoverageRate.ToString("P1"), DestinationCoverage = c.DestinationCoverageRate.ToString("P1"),
-                SourceUnique = c.SourceUniqueRate.ToString("P1"), DestinationUnique = c.DestinationUniqueRate.ToString("P1"),
-                Overlap = c.OverlapRate.ToString("P1"), Score = c.Score.ToString("0.00"), Reason = c.Reason }).ToList();
-            grid = new DataGrid { AutoGenerateColumns=false, CanUserAddRows=false, CanUserDeleteRows=false, ItemsSource=items };
-            grid.Columns.Add(new DataGridCheckBoxColumn { Header="选择", Binding=new Binding("Selected") { Mode=BindingMode.TwoWay }, Width=52 });
-            Add("字段","Field",150); Add("左侧非空率","SourceCoverage",88); Add("右侧非空率","DestinationCoverage",88);
-            Add("左侧唯一率","SourceUnique",88); Add("右侧唯一率","DestinationUnique",88); Add("两表重合率","Overlap",88);
-            Add("得分","Score",65); Add("分析结论","Reason",new DataGridLength(1,DataGridLengthUnitType.Star)); root.Children.Add(grid);
-            var bottom = new DockPanel { Margin=new Thickness(0,10,0,0) }; DockPanel.SetDock(bottom,Dock.Bottom); root.Children.Add(bottom);
-            bottom.Children.Add(new TextBlock { Text="联合主键按勾选字段的显示顺序组合。应用后会重新分析组合唯一率、重合率和匹配数量，并在主界面常驻显示。", TextWrapping=TextWrapping.Wrap, VerticalAlignment=VerticalAlignment.Center });
-            var buttons = new StackPanel { Orientation=Orientation.Horizontal, HorizontalAlignment=HorizontalAlignment.Right }; DockPanel.SetDock(buttons,Dock.Right); bottom.Children.Add(buttons);
-            var apply = new Button { Content="应用并重新分析", MinWidth=110, Margin=new Thickness(8,0,0,0), Padding=new Thickness(8,3,8,3), IsDefault=true };
-            apply.Click += Apply; buttons.Children.Add(apply);
-            buttons.Children.Add(new Button { Content="取消", MinWidth=72, Margin=new Thickness(8,0,0,0), Padding=new Thickness(8,3,8,3), IsCancel=true });
-            auto.Checked += (s,e) => grid.IsEnabled=false; manual.Checked += (s,e) => grid.IsEnabled=true; grid.IsEnabled = selectedSet.Count > 0;
+            auto = new RadioButton
+            {
+                Content = "自动选择",
+                IsChecked = selectedSet.Count == 0,
+                Margin = new Thickness(0, 0, 16, 0)
+            };
+            manual = new RadioButton
+            {
+                Content = "手动选择（可勾选一个或多个字段）",
+                IsChecked = selectedSet.Count > 0
+            };
+            modes.Children.Add(auto);
+            modes.Children.Add(manual);
+            top.Children.Add(modes);
+
+            items = analysis.Candidates.OrderByDescending(candidate => candidate.Score).Select(candidate => new Item
+            {
+                Selected = candidate.ColumnNames.Count == 1 && selectedSet.Contains(candidate.ColumnNames[0]),
+                Field = candidate.DisplayName,
+                SourceCoverage = candidate.SourceCoverageRate.ToString("P1"),
+                DestinationCoverage = candidate.DestinationCoverageRate.ToString("P1"),
+                SourceUnique = candidate.SourceUniqueRate.ToString("P1"),
+                DestinationUnique = candidate.DestinationUniqueRate.ToString("P1"),
+                Overlap = candidate.OverlapRate.ToString("P1"),
+                Score = candidate.Score.ToString("0.00"),
+                Reason = candidate.Reason
+            }).ToList();
+
+            grid = new DataGrid
+            {
+                AutoGenerateColumns = false,
+                CanUserAddRows = false,
+                CanUserDeleteRows = false,
+                ItemsSource = items
+            };
+            grid.BeginningEdit += (sender, args) =>
+            {
+                if (args.Column is DataGridCheckBoxColumn)
+                    manual.IsChecked = true;
+            };
+            grid.Columns.Add(new DataGridCheckBoxColumn
+            {
+                Header = "选择",
+                Binding = new Binding("Selected") { Mode = BindingMode.TwoWay },
+                Width = 52
+            });
+            Add("字段", "Field", 150);
+            Add("左侧非空率", "SourceCoverage", 88);
+            Add("右侧非空率", "DestinationCoverage", 88);
+            Add("左侧唯一率", "SourceUnique", 88);
+            Add("右侧唯一率", "DestinationUnique", 88);
+            Add("两表重合率", "Overlap", 88);
+            Add("得分", "Score", 65);
+            Add("分析结论", "Reason", new DataGridLength(1, DataGridLengthUnitType.Star));
+            Grid.SetRow(grid, 1);
+            root.Children.Add(grid);
+
+            var bottom = new DockPanel { Margin = new Thickness(0, 10, 0, 0), LastChildFill = true };
+            Grid.SetRow(bottom, 2);
+            root.Children.Add(bottom);
+
+            var buttons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            DockPanel.SetDock(buttons, Dock.Right);
+            bottom.Children.Add(buttons);
+
+            var confirm = new Button
+            {
+                Content = "确定",
+                MinWidth = 72,
+                Margin = new Thickness(8, 0, 0, 0),
+                Padding = new Thickness(8, 3, 8, 3),
+                IsDefault = true
+            };
+            confirm.Click += Confirm;
+            buttons.Children.Add(confirm);
+            buttons.Children.Add(new Button
+            {
+                Content = "取消",
+                MinWidth = 72,
+                Margin = new Thickness(8, 0, 0, 0),
+                Padding = new Thickness(8, 3, 8, 3),
+                IsCancel = true
+            });
+
+            bottom.Children.Add(new TextBlock
+            {
+                Text = "勾选字段会自动切换到手动模式。点“确定”后，主界面会自动重新计算并刷新左右表格。",
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center
+            });
         }
 
         private void Add(string header, string property, double width)
@@ -85,12 +174,20 @@ namespace ExcelMerge.GUI.Views
             });
         }
 
-        private void Apply(object sender, RoutedEventArgs e)
+        private void Confirm(object sender, RoutedEventArgs e)
         {
+            grid.CommitEdit(DataGridEditingUnit.Cell, true);
+            grid.CommitEdit(DataGridEditingUnit.Row, true);
+
             UseManualSelection = manual.IsChecked == true;
-            SelectedColumns = items.Where(i => i.Selected).Select(i => i.Field).ToList();
+            SelectedColumns = items.Where(item => item.Selected).Select(item => item.Field).ToList();
             if (UseManualSelection && SelectedColumns.Count == 0)
-            { MessageBox.Show(this,"手动模式至少选择一个字段。","主键选择",MessageBoxButton.OK,MessageBoxImage.Information); return; }
+            {
+                MessageBox.Show(this, "手动模式至少选择一个字段。", "主键选择",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
             DialogResult = true;
         }
 
