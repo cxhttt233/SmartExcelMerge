@@ -7,6 +7,8 @@ using ExcelMerge.GUI.Views;
 using ExcelMerge.GUI.Models;
 using ExcelMerge.GUI.Settings;
 using System.Reflection;
+using System.Threading;
+using System.Windows.Threading;
 
 namespace ExcelMerge.RegressionTests
 {
@@ -29,6 +31,10 @@ namespace ExcelMerge.RegressionTests
             Run("selective unhide and session safety", SelectiveRestoreAndSessionSafety);
             Run("selective restore picker WPF smoke", RestoreHiddenItemsPickerSmoke);
             Run("view right click hide and restore interaction", ViewContextMenuInteraction);
+            Run("cancel progress leaves view safe", ProgressCancelSmoke);
+            Run("background error reaches caller", BackgroundErrorSmoke);
+            Run("large sheets with no reliable key fail fast", LargeNoKeyFailsFast);
+            Run("many added rows are matched efficiently", LargeAddedRows);
             Console.WriteLine(failures == 0 ? "All regression tests passed." : failures + " failed.");
             return failures == 0 ? 0 : 1;
         }
@@ -258,6 +264,104 @@ namespace ExcelMerge.RegressionTests
             Assert(buttons.Any(b => Equals(b.Content, "全部恢复")), "restore all button");
             Assert(buttons.Any(b => Equals(b.Content, "取消")), "safe cancel");
             picker.Close();
+        }
+
+        private static void ProgressCancelSmoke()
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            var completed = ProgressWindow.DoWorkWithModal((progress, cancellation) =>
+            {
+                dispatcher.BeginInvoke(new Action(() =>
+                {
+                    var dialog = Application.Current.Windows.OfType<ProgressWindow>().LastOrDefault();
+                    Assert(dialog != null, "progress window exists");
+                    dialog.Close();
+                }));
+                cancellation.WaitHandle.WaitOne(3000);
+                cancellation.ThrowIfCancellationRequested();
+            });
+            Assert(!completed, "closing a running progress window never reports a successful result");
+        }
+
+        private static void BackgroundErrorSmoke()
+        {
+            bool surfaced = false;
+            try
+            {
+                ProgressWindow.DoWorkWithModal((progress, cancellation) =>
+                {
+                    throw new InvalidOperationException("intentional test error");
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                surfaced = ex.Message == "intentional test error";
+            }
+            Assert(surfaced, "background failures are not silently swallowed");
+        }
+
+        private static ExcelSheet RepeatedLargeSheet(int count)
+        {
+            var sheet = new ExcelSheet();
+            sheet.Rows.Add(0, new ExcelRow(0, new[] {
+                new ExcelCell("类型", 0, 0), new ExcelCell("名称", 1, 0)
+            }));
+            for (int i = 1; i <= count; i++)
+                sheet.Rows.Add(i, new ExcelRow(i, new[] {
+                    new ExcelCell("项目", 0, i), new ExcelCell("重复名称", 1, i)
+                }));
+            return sheet;
+        }
+
+        private static void LargeNoKeyFailsFast()
+        {
+            RowKeySelectionRuntime.Clear();
+            var left = RepeatedLargeSheet(1600);
+            var right = RepeatedLargeSheet(1600);
+            bool guarded = false;
+            try
+            {
+                ExcelSheet.Diff(left, right, Config());
+            }
+            catch (InvalidOperationException ex)
+            {
+                guarded = ex.Message.Contains("主键");
+            }
+            Assert(guarded, "large ambiguous tables must explain primary key requirement instead of using expensive legacy LCS");
+
+            using (var cancellation = new CancellationTokenSource())
+            {
+                cancellation.Cancel();
+                bool stopped = false;
+                try { ExcelSheet.Diff(left, right, Config(), cancellation.Token); }
+                catch (OperationCanceledException) { stopped = true; }
+                Assert(stopped, "cancellation is honored before diff calculation");
+            }
+        }
+
+        private static ExcelSheet KeyedSheet(int rows)
+        {
+            var sheet = new ExcelSheet();
+            sheet.Rows.Add(0, new ExcelRow(0, new[] {
+                new ExcelCell("工程编号", 0, 0), new ExcelCell("名称", 1, 0)
+            }));
+            for (int i = 1; i <= rows; i++)
+                sheet.Rows.Add(i, new ExcelRow(i, new[] {
+                    new ExcelCell("G" + i, 0, i), new ExcelCell("水库" + i, 1, i)
+                }));
+            return sheet;
+        }
+
+        private static void LargeAddedRows()
+        {
+            RowKeySelectionRuntime.Clear();
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var summary = ExcelSheet.Diff(KeyedSheet(1000), KeyedSheet(3500), Config()).CreateSummary();
+            stopwatch.Stop();
+            Assert(summary.AddedRowCount == 2500 && summary.RemovedRowCount == 0,
+                "large added data retained without false deletions");
+            Assert(stopwatch.Elapsed.TotalSeconds < 30,
+                "large keyed add-only comparison must remain reasonably responsive");
         }
 
         private static void ViewContextMenuInteraction()
