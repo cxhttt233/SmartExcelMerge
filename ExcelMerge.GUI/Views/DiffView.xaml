@@ -72,6 +72,10 @@
                            IsChecked="False"
                            Checked="ShowOnlyDiffRadioButton_Checked"
                            />
+              <Separator Width="12"/>
+              <CheckBox x:Name="ShowAddedRowsCheckBox" Content="新增行" IsChecked="True" Margin="5,3" Checked="DiffCategoryCheckBox_Changed" Unchecked="DiffCategoryCheckBox_Changed"/>
+              <CheckBox x:Name="ShowModifiedRowsCheckBox" Content="修改行" IsChecked="True" Margin="5,3" Checked="DiffCategoryCheckBox_Changed" Unchecked="DiffCategoryCheckBox_Changed"/>
+              <CheckBox x:Name="ShowRemovedRowsCheckBox" Content="删除行" IsChecked="True" Margin="5,3" Checked="DiffCategoryCheckBox_Changed" Unchecked="DiffCategoryCheckBox_Changed"/>
             </StackPanel>
           </GroupBox>
 
