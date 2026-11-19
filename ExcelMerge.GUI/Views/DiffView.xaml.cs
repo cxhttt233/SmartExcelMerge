@@ -6,6 +6,7 @@ using System.Linq;
 using System.IO;
 using System.Text;
 using System.Windows;
+using ExcelMerge.GUI.Diagnostics;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
@@ -727,11 +728,16 @@ namespace ExcelMerge.GUI.Views
                 return;
 
             isExecutingDiff = true;
+            var diagnosticOutcome = "not completed";
+            RuntimeLog.BeginOperation("compare", "src=" + Path.GetFileName(SrcPathTextBox.Text) +
+                " dst=" + Path.GetFileName(DstPathTextBox.Text) +
+                " scan_all_sheets=" + scanAllSheets);
             try
             {
+                RuntimeLog.Stage("compare.read_files");
                 // Keep the last successful comparison visible until a new valid result exists.
                 var workbooks = ReadWorkbooks();
-                if (workbooks == null) return; // User cancelled reading; keep the previous view unchanged.
+                if (workbooks == null) { diagnosticOutcome = "cancelled reading"; return; }
                 var srcWorkbook = workbooks.Item1;
                 var dstWorkbook = workbooks.Item2;
 
@@ -745,8 +751,9 @@ namespace ExcelMerge.GUI.Views
                 ExcelSheetDiff scannedDiff = null;
                 if (scanAllSheets)
                 {
+                    RuntimeLog.Stage("compare.scan_all_sheets");
                     var targets = ScanSheetDiffs(srcWorkbook, dstWorkbook, srcFileSetting, dstFileSetting);
-                    if (targets == null) return; // Cancelled scanning sheets.
+                    if (targets == null) { diagnosticOutcome = "cancelled sheet scan"; return; }
                     UpdateSheetDiffStates(targets);
 
                     var firstDifferingTarget = targets.FirstOrDefault(target => target.HasDiff);
@@ -782,12 +789,18 @@ namespace ExcelMerge.GUI.Views
                 if (srcSheet.Rows.Count > 10000 || dstSheet.Rows.Count > 10000)
                     MessageBox.Show(Properties.Resources.Msg_WarnSize);
 
+                RuntimeLog.Stage("compare.run_diff src_rows=" + srcSheet.Rows.Count +
+                    " dst_rows=" + dstSheet.Rows.Count);
                 var diff = scannedDiff ?? ExecuteDiff(srcSheet, dstSheet);
-                if (diff == null) return; // Never construct a grid from a cancelled/failed comparison.
+                if (diff == null) { diagnosticOutcome = "cancelled diff"; return; }
+                RuntimeLog.Stage("compare.apply_view");
                 ApplyDiff(diff, srcFileSetting, dstFileSetting, srcSheetName, dstSheetName);
+                diagnosticOutcome = "success";
             }
             catch (Exception exception)
             {
+                diagnosticOutcome = "exception";
+                RuntimeLog.Exception("comparison failed", exception);
                 System.Diagnostics.Debug.WriteLine(exception);
                 MessageBox.Show(
                     "本次比较未完成，原始 Excel 未被修改。\n\n" + exception.Message +
@@ -796,6 +809,7 @@ namespace ExcelMerge.GUI.Views
             }
             finally
             {
+                RuntimeLog.EndOperation(diagnosticOutcome);
                 isExecutingDiff = false;
             }
         }
