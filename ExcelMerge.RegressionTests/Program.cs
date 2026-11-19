@@ -19,6 +19,10 @@ namespace ExcelMerge.RegressionTests
         [STAThread]
         private static int Main()
         {
+            // This is a windowless test host; configure lifecycle before constructing
+            // any WPF windows. Production uses a real main window instead.
+            var app = ExcelMerge.GUI.App.Instance ?? new ExcelMerge.GUI.App();
+            app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             Run("auto", Auto);
             Run("manual single", Single);
             Run("composite", Composite);
@@ -268,9 +272,6 @@ namespace ExcelMerge.RegressionTests
 
         private static void ProgressCancelSmoke()
         {
-            // Tests create dialogs without the real main window. Prevent WPF from shutting
-            // down the test application when the first modal progress dialog closes.
-            Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             var dispatcher = Dispatcher.CurrentDispatcher;
             var completed = ProgressWindow.DoWorkWithModal((progress, cancellation) =>
             {
