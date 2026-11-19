@@ -1,0 +1,38 @@
+SmartMerge 1.3.10 · 卡顿诊断版
+===========================
+
+本版是为了定位“约100条记录、33条匹配，但进度窗口长时间不结束”等问题。
+不要求上传原始表格，日志默认只记录文件名、大小、工作表序号与行列规模、
+阶段耗时、内存、CPU、取消及异常。不会把单元格内容写入日志，也不会自动上传。
+
+如何操作
+1. 解压整个 ZIP，启动 ExcelMerge.GUI.exe。
+2. 使用同样的两份 Excel，选好左右工作表和主键，开始比较。
+3. 如果再次卡住，尽量让进度窗口运行约15秒，以便捕获 LONG_STEP/UI_HANG_SUSPECT 记录。
+4. 试试“取消比较”；如果程序仍无响应，可通过任务管理器结束 ExcelMerge.GUI。
+5. 在正常时点顶部“视图”→“打开诊断日志文件夹…”。
+   如果程序已卡死无法操作，在 Windows 资源管理器地址栏输入：
+      %LOCALAPPDATA%\SmartMerge\logs
+   备用目录（如本地权限不可写）：%TEMP%\SmartMerge-logs
+6. 找到当天的 smartmerge-YYYYMMDD.log。
+   建议发送当天日志中最后一次 OP_BEGIN 至 OP_END/退出处的记录，
+   特别是 STAGE、LONG_STEP、UI_HANG_SUSPECT、CANCEL_REQUEST 和 EXCEPTION。
+
+字段解释
+- workbook.parse_npoi：加载和解析 Excel 文档以及其中的格式/样式。
+- sheet.read / reader.begin：扫描工作表，日志包含 physical_rows、last_row。
+- reader.progress：扫描到的单元格数以及最大列数。
+- reader.done：总共扫描多少行、多少单元格，最大列宽。
+- diff.key_analysis：主键候选分析。
+- smart.headers / smart.columns / smart.find_key：识别标题、列和匹配主键。
+- smart.rows_keyed / smart.rows_lcs：主键配对或行序列配对。
+- smart.build_diff：组合最终差异行列。
+- LONG_STEP：界面可能正常，但后台同一阶段超过12秒。
+- UI_HANG_SUSPECT：UI超过12秒未响应心跳。属于怀疑，不是100%确定死锁。
+- EXCEPTION：异常消息和堆栈。
+
+说明
+- 日志不会自动上传，里面可能包含文件名/程序路径/内部异常详情。
+  发送前可以自行检查并删除敏感的路径或文件名。
+- 最后一条日志就是卡点线索。若某一步日志未能写出，不代表该步未发生。
+- 按取消后即使界面返回，后台耗时任务仍可能在安全检查点前继续运行。
