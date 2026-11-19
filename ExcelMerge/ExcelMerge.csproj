@@ -73,6 +73,7 @@
     <Compile Include="ExcelCellValueComparer.cs" />
     <Compile Include="ExcelColumn.cs" />
     <Compile Include="ExcelColumnStatus.cs" />
+    <Compile Include="ComparisonTelemetry.cs" />
     <Compile Include="ExcelReader.cs" />
     <Compile Include="ExcelRow.cs" />
     <Compile Include="RowKeyAnalysis.cs" />
