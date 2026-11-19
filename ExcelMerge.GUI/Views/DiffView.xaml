@@ -390,14 +390,17 @@
           <Separator/>
           <MenuItem Header="复制整行（TSV）" Click="CopySrcRowsAsTsv_Click"/>
           <Separator/>
-          <MenuItem Header="隐藏选中行（仅视图）" Click="HideSelectedRows_Click"/>
-          <MenuItem Header="隐藏选中列（仅视图）" Click="HideSelectedColumns_Click"/>
-          <MenuItem Header="选中行置顶并固定" Click="PinSelectedRows_Click"/>
-          <MenuItem Header="选中列置左并固定" Click="PinSelectedColumns_Click"/>
-          <MenuItem Header="取消隐藏全部行" Click="ShowUserRows_Click"/>
-          <MenuItem Header="取消隐藏全部列" Click="ShowUserColumns_Click"/>
-          <MenuItem Header="恢复默认行顺序" Click="RestoreRowOrder_Click"/>
-          <MenuItem Header="恢复默认列顺序" Click="RestoreColumnOrder_Click"/>
+          <MenuItem Header="整理视图（仅显示，不改原文件）">
+            <MenuItem Header="隐藏选中行" Click="HideSelectedRows_Click"/>
+            <MenuItem Header="隐藏选中列" Click="HideSelectedColumns_Click"/>
+            <MenuItem Header="选中行置顶并固定" Click="PinSelectedRows_Click"/>
+            <MenuItem Header="选中列置左并固定" Click="PinSelectedColumns_Click"/>
+            <Separator/>
+            <MenuItem Header="取消隐藏全部行" Click="ShowUserRows_Click"/>
+            <MenuItem Header="取消隐藏全部列" Click="ShowUserColumns_Click"/>
+            <MenuItem Header="恢复默认行顺序" Click="RestoreRowOrder_Click"/>
+            <MenuItem Header="恢复默认列顺序" Click="RestoreColumnOrder_Click"/>
+          </MenuItem>
         </ContextMenu>
       </fg:FastGridControl.ContextMenu>
 
@@ -443,14 +446,17 @@
           <Separator/>
           <MenuItem Header="复制整行（TSV）" Click="CopyDstRowsAsTsv_Click"/>
           <Separator/>
-          <MenuItem Header="隐藏选中行（仅视图）" Click="HideSelectedRows_Click"/>
-          <MenuItem Header="隐藏选中列（仅视图）" Click="HideSelectedColumns_Click"/>
-          <MenuItem Header="选中行置顶并固定" Click="PinSelectedRows_Click"/>
-          <MenuItem Header="选中列置左并固定" Click="PinSelectedColumns_Click"/>
-          <MenuItem Header="取消隐藏全部行" Click="ShowUserRows_Click"/>
-          <MenuItem Header="取消隐藏全部列" Click="ShowUserColumns_Click"/>
-          <MenuItem Header="恢复默认行顺序" Click="RestoreRowOrder_Click"/>
-          <MenuItem Header="恢复默认列顺序" Click="RestoreColumnOrder_Click"/>
+          <MenuItem Header="整理视图（仅显示，不改原文件）">
+            <MenuItem Header="隐藏选中行" Click="HideSelectedRows_Click"/>
+            <MenuItem Header="隐藏选中列" Click="HideSelectedColumns_Click"/>
+            <MenuItem Header="选中行置顶并固定" Click="PinSelectedRows_Click"/>
+            <MenuItem Header="选中列置左并固定" Click="PinSelectedColumns_Click"/>
+            <Separator/>
+            <MenuItem Header="取消隐藏全部行" Click="ShowUserRows_Click"/>
+            <MenuItem Header="取消隐藏全部列" Click="ShowUserColumns_Click"/>
+            <MenuItem Header="恢复默认行顺序" Click="RestoreRowOrder_Click"/>
+            <MenuItem Header="恢复默认列顺序" Click="RestoreColumnOrder_Click"/>
+          </MenuItem>
           <MenuItem Header="在上方插入空行" Click="InsertDstRowAbove_Click"/>
           <MenuItem Header="在下方插入空行" Click="InsertDstRowBelow_Click"/>
           <MenuItem Header="在下方插入已复制的行" Click="InsertCopiedRowsBelow_Click"/>
