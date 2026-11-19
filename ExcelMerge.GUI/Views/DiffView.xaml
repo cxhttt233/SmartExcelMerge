@@ -81,6 +81,21 @@
             </StackPanel>
           </GroupBox>
 
+          <!-- View layout only changes the display, never the Excel data. -->
+          <Menu VerticalAlignment="Center" Margin="8,0,0,0" ToolTip="行列视图调整仅影响显示，不会修改原始文件">
+            <MenuItem Header="视图 ▾">
+              <MenuItem Header="恢复手动隐藏行" Click="ShowUserRows_Click"/>
+              <MenuItem Header="恢复手动隐藏列" Click="ShowUserColumns_Click"/>
+              <Separator/>
+              <MenuItem Header="恢复默认行顺序（取消置顶）" Click="RestoreRowOrder_Click"/>
+              <MenuItem Header="恢复默认列顺序（取消置左）" Click="RestoreColumnOrder_Click"/>
+              <Separator/>
+              <MenuItem Header="恢复全部视图调整" Click="RestoreViewLayout_Click"/>
+            </MenuItem>
+          </Menu>
+          <TextBlock x:Name="ViewLayoutStatusTextBlock" VerticalAlignment="Center" Margin="4,0,3,0"
+                     Foreground="DimGray" FontSize="11" MaxWidth="250" TextTrimming="CharacterEllipsis"/>
+
           <!--Src-->
           <GroupBox Header="{x:Static props:Resources.Word_SrcFile}" Margin="10,0,0,0">
             <StackPanel Orientation="Horizontal">
@@ -374,6 +389,15 @@
           <MenuItem Header="{x:Static props:Resources.ContextMenu_CopyAsCsv}" Click="CopyAsCsv_Click" InputGestureText="Ctrl + C"/>
           <Separator/>
           <MenuItem Header="复制整行（TSV）" Click="CopySrcRowsAsTsv_Click"/>
+          <Separator/>
+          <MenuItem Header="隐藏选中行（仅视图）" Click="HideSelectedRows_Click"/>
+          <MenuItem Header="隐藏选中列（仅视图）" Click="HideSelectedColumns_Click"/>
+          <MenuItem Header="选中行置顶并固定" Click="PinSelectedRows_Click"/>
+          <MenuItem Header="选中列置左并固定" Click="PinSelectedColumns_Click"/>
+          <MenuItem Header="取消隐藏全部行" Click="ShowUserRows_Click"/>
+          <MenuItem Header="取消隐藏全部列" Click="ShowUserColumns_Click"/>
+          <MenuItem Header="恢复默认行顺序" Click="RestoreRowOrder_Click"/>
+          <MenuItem Header="恢复默认列顺序" Click="RestoreColumnOrder_Click"/>
         </ContextMenu>
       </fg:FastGridControl.ContextMenu>
 
@@ -418,6 +442,15 @@
           <MenuItem Header="{x:Static props:Resources.ContextMenu_CopyAsCsv}" Click="CopyAsCsv_Click" InputGestureText="Ctrl + C"/>
           <Separator/>
           <MenuItem Header="复制整行（TSV）" Click="CopyDstRowsAsTsv_Click"/>
+          <Separator/>
+          <MenuItem Header="隐藏选中行（仅视图）" Click="HideSelectedRows_Click"/>
+          <MenuItem Header="隐藏选中列（仅视图）" Click="HideSelectedColumns_Click"/>
+          <MenuItem Header="选中行置顶并固定" Click="PinSelectedRows_Click"/>
+          <MenuItem Header="选中列置左并固定" Click="PinSelectedColumns_Click"/>
+          <MenuItem Header="取消隐藏全部行" Click="ShowUserRows_Click"/>
+          <MenuItem Header="取消隐藏全部列" Click="ShowUserColumns_Click"/>
+          <MenuItem Header="恢复默认行顺序" Click="RestoreRowOrder_Click"/>
+          <MenuItem Header="恢复默认列顺序" Click="RestoreColumnOrder_Click"/>
           <MenuItem Header="在上方插入空行" Click="InsertDstRowAbove_Click"/>
           <MenuItem Header="在下方插入空行" Click="InsertDstRowBelow_Click"/>
           <MenuItem Header="在下方插入已复制的行" Click="InsertCopiedRowsBelow_Click"/>
