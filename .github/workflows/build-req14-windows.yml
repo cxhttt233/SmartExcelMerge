@@ -1,4 +1,4 @@
-name: Build SmartMerge Req 1+4 Windows EXE
+name: Build SmartMerge Req 1+4 + Key Analysis Windows EXE
 on:
   push:
     branches: [master]
@@ -13,28 +13,39 @@ jobs:
       - uses: actions/checkout@v4
       - uses: NuGet/setup-nuget@v2
       - uses: microsoft/setup-msbuild@v2
-      - name: Verify requirement 1 and 4 source
+      - name: Verify source features
         shell: pwsh
         run: |
-          if (-not (Select-String -Path 'ExcelMerge.GUI/Views/DiffView.xaml.cs' -Pattern 'FormatExcelClipboardCell' -Quiet)) { throw 'Clipboard patch missing' }
-          if (-not (Select-String -Path 'ExcelMerge.GUI/Views/DiffView.xaml' -Pattern 'ShowRemovedRowsCheckBox' -Quiet)) { throw 'Filter patch missing' }
+          $ErrorActionPreference = 'Stop'
+          if (-not (Select-String -Path 'ExcelMerge.GUI/Views/DiffView.xaml.cs' -Pattern 'FormatExcelClipboardCell' -Quiet)) { throw 'Excel clipboard patch missing' }
+          if (-not (Select-String -Path 'ExcelMerge.GUI/Views/DiffView.xaml' -Pattern 'DiffCategoryFilterPanel' -Quiet)) { throw 'Diff category panel missing' }
+          if (-not (Select-String -Path 'ExcelMerge.GUI/Views/DiffView.KeyAnalysis.cs' -Pattern 'RowKeyAnalysisButton_Click' -Quiet)) { throw 'Row key analysis UI missing' }
+          if (-not (Select-String -Path 'ExcelMerge/RowKeySelectionEngine.cs' -Pattern 'CloneWithCompositeKey' -Quiet)) { throw 'Composite key engine missing' }
       - name: Restore NuGet packages
         run: nuget restore ExcelMerge.sln
-      - name: Compile EXE on Windows
+      - name: Compile Windows GUI Release
         run: msbuild ExcelMerge.GUI\ExcelMerge.GUI.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /m
-      - name: ZIP compiled portable application with DLLs
+      - name: Build row-key regression tests
+        run: msbuild ExcelMerge.RegressionTests\ExcelMerge.RegressionTests.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /m
+      - name: Run row-key regression tests
+        shell: pwsh
+        run: |
+          & '.\ExcelMerge.RegressionTests\bin\Release\ExcelMerge.RegressionTests.exe'
+          if ($LASTEXITCODE -ne 0) { throw "Regression tests failed: $LASTEXITCODE" }
+      - name: ZIP portable Windows application
         shell: pwsh
         run: |
           if (-not (Test-Path 'ExcelMerge.GUI/bin/Release/ExcelMerge.GUI.exe')) { throw 'EXE was not compiled' }
-          Compress-Archive -Path 'ExcelMerge.GUI/bin/Release/*' -DestinationPath 'SmartMerge-20261119-req1-4-Windows-EXE.zip' -Force
+          Compress-Archive -Path 'ExcelMerge.GUI/bin/Release/*' -DestinationPath 'SmartMerge-20261119-req1-4-key-analysis-Windows-EXE.zip' -Force
+          (Get-FileHash 'SmartMerge-20261119-req1-4-key-analysis-Windows-EXE.zip' -Algorithm SHA256).Hash | Set-Content 'SHA256.txt'
       - name: Upload ready-to-run executable archive
         uses: actions/upload-artifact@v4
         with:
-          name: SmartMerge-20261119-req1-4-Windows-EXE
-          path: SmartMerge-20261119-req1-4-Windows-EXE.zip
+          name: SmartMerge-20261119-req1-4-key-analysis-Windows-EXE
+          path: SmartMerge-20261119-req1-4-key-analysis-Windows-EXE.zip
       - name: Publish GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.3.5-req1-4 --repo cxhttt233/SmartExcelMerge --target master --title "SmartMerge EXE (2026-11-19) - 复制及差异过滤" --notes "需求1：复制 Excel 兼容的多行双引号 TSV/CSV；需求4：新增、修改、删除行勾选过滤。Windows .NET Framework 4.8 EXE，解压后运行 ExcelMerge.GUI.exe。尚未实现外部 Excel 已筛选区域只粘贴可见单元格。" .\SmartMerge-20261119-req1-4-Windows-EXE.zip
+          gh release create v1.3.6-req1-4-key-analysis --repo cxhttt233/SmartExcelMerge --target master --title "SmartMerge 1.3.6 - Excel复制、差异筛选与主键分析恢复" --notes "需求1：Excel兼容的多行/引号TSV/CSV复制。需求4：新增/修改/删除分类筛选，仅在仅显示差异模式出现。恢复主键分析：自动候选评估、手动单主键和联合主键、唯一率/覆盖率/重合率分析及预览。包含Windows .NET Framework 4.8 EXE和回归测试。" '.\SmartMerge-20261119-req1-4-key-analysis-Windows-EXE.zip'
