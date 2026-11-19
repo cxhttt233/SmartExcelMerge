@@ -262,6 +262,8 @@ namespace ExcelMerge.RegressionTests
 
         private static void ViewContextMenuInteraction()
         {
+            // The real app calls Setting.Ensure() on startup; rendering requires those colors.
+            ExcelMerge.GUI.App.Instance.Setting.Ensure();
             RowKeySelectionRuntime.Clear();
             var diff = ExcelSheet.Diff(
                 Sheet(new[] { "ID", "Name" }, new[] { "1", "A" }, new[] { "2", "B" }),
