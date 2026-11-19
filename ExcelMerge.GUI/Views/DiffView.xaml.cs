@@ -729,9 +729,7 @@ namespace ExcelMerge.GUI.Views
             isExecutingDiff = true;
             try
             {
-                var args = new DiffViewEventArgs<FastGridControl>(null, container, TargetType.First);
-                DataGridEventDispatcher.Instance.DispatchPreExecuteDiffEvent(args);
-
+                // Keep the last successful comparison visible until a new valid result exists.
                 var workbooks = ReadWorkbooks();
                 if (workbooks == null) return; // User cancelled reading; keep the previous view unchanged.
                 var srcWorkbook = workbooks.Item1;
@@ -811,6 +809,8 @@ namespace ExcelMerge.GUI.Views
         {
             if (diff == null) return;
             RememberCurrentViewLayout();
+            var beforeRefresh = new DiffViewEventArgs<FastGridControl>(null, container, TargetType.First);
+            DataGridEventDispatcher.Instance.DispatchPreExecuteDiffEvent(beforeRefresh);
             SrcDataGrid.Model = new DiffGridModel(diff, DiffType.Source);
             DstDataGrid.IsReadOnly = !CanEditDst();
             DstDataGrid.Model = new DiffGridModel(diff, DiffType.Dest, CanEditDst() ? (Action<int, int, string>)ApplyDstCellEdit : null);
