@@ -45,6 +45,7 @@ jobs:
           Copy-Item 'docs/demo/smart-diff-before.xlsx' 'ExcelMerge.GUI/bin/Release/samples/'
           Copy-Item 'docs/demo/smart-diff-after.xlsx' 'ExcelMerge.GUI/bin/Release/samples/'
           Copy-Item 'docs/demo/视图整理试用说明.txt' 'ExcelMerge.GUI/bin/Release/试用说明.txt'
+          Copy-Item 'docs/demo/诊断日志使用说明.txt' 'ExcelMerge.GUI/bin/Release/诊断日志使用说明.txt'
           Compress-Archive -Path 'ExcelMerge.GUI/bin/Release/*' -DestinationPath 'SmartMerge-20261119-hang-diagnostics-Windows-EXE.zip' -Force
       - name: Upload portable Windows EXE
         uses: actions/upload-artifact@v4
