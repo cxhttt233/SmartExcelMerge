@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using NPOI.SS.UserModel;
 using NetDiff;
 using SKCore.Collection;
@@ -120,20 +121,34 @@ namespace ExcelMerge
             return sheet;
         }
 
-        public static ExcelSheetDiff Diff(ExcelSheet src, ExcelSheet dst, ExcelSheetDiffConfig config)
+        public static ExcelSheetDiff Diff(ExcelSheet src, ExcelSheet dst, ExcelSheetDiffConfig config,
+            CancellationToken cancellation = default(CancellationToken))
         {
+            cancellation.ThrowIfCancellationRequested();
             config = config ?? new ExcelSheetDiffConfig();
 
             if (config.UseSmartTableDiff)
             {
-                var prepared = RowKeySelectionEngine.Prepare(src, dst, config);
-                var diff = SmartDiff(prepared.Source, prepared.Destination, config);
+                var prepared = RowKeySelectionEngine.Prepare(src, dst, config, cancellation);
+                cancellation.ThrowIfCancellationRequested();
+                var diff = SmartDiff(prepared.Source, prepared.Destination, config, cancellation);
+                cancellation.ThrowIfCancellationRequested();
                 if (prepared.SyntheticSourceColumn.HasValue && prepared.SyntheticDestinationColumn.HasValue)
                     RowKeySelectionEngine.RemoveSyntheticColumn(diff, prepared.SyntheticSourceColumn.Value, prepared.SyntheticDestinationColumn.Value);
                 return diff;
             }
 
+            // Legacy whole-sheet LCS is quadratic. Do not freeze the UI on large files.
+            EnsureSafeLegacySize(src, dst);
+            cancellation.ThrowIfCancellationRequested();
             return DiffLegacy(src, dst, config);
+        }
+
+        private static void EnsureSafeLegacySize(ExcelSheet src, ExcelSheet dst)
+        {
+            if ((long)src.Rows.Count * dst.Rows.Count > 2000000L)
+                throw new InvalidOperationException(
+                    "两份工作表的记录量较大，且当前比较方式需要逐行全文比对，可能长时间无响应。请启用智能表格比较，并通过“主键分析与选择”设置可靠的唯一编号或联合主键后重试。原始文件未修改。");
         }
 
         private static ExcelSheetDiff DiffLegacy(ExcelSheet src, ExcelSheet dst, ExcelSheetDiffConfig config)
