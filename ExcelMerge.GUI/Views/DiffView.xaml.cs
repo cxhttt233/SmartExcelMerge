@@ -1250,6 +1250,10 @@ namespace ExcelMerge.GUI.Views
             if (DiffCategoryFilterPanel != null)
                 DiffCategoryFilterPanel.Visibility = Visibility.Collapsed;
 
+            // IsChecked fires while XAML is being constructed, before the view's container exists.
+            if (container == null)
+                return;
+
             var args = new DiffViewEventArgs<FastGridControl>(null, container, TargetType.First);
             DataGridEventDispatcher.Instance.DispatchDisplayFormatChangeEvent(args, false);
         }
@@ -1258,6 +1262,9 @@ namespace ExcelMerge.GUI.Views
         {
             if (DiffCategoryFilterPanel != null)
                 DiffCategoryFilterPanel.Visibility = Visibility.Visible;
+
+            if (container == null)
+                return;
 
             var args = new DiffViewEventArgs<FastGridControl>(null, container, TargetType.First);
             DataGridEventDispatcher.Instance.DispatchDisplayFormatChangeEvent(args, true);
