@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows;
 using ExcelMerge.GUI.Commands;
 using ExcelMerge.GUI.Settings;
+using ExcelMerge.GUI.Diagnostics;
 
 namespace ExcelMerge.GUI
 {
@@ -19,6 +20,8 @@ namespace ExcelMerge.GUI
         {
             App app = new App();
             app.InitializeComponent();
+            RuntimeLog.Start(app.Dispatcher);
+            RuntimeLog.Write("BOOT", "Loading settings");
             app.Setting = ApplicationSetting.Load();
             app.Setting.EnsureCulture();
             app.Setting.Culture = "zh-CN";
@@ -38,6 +41,17 @@ namespace ExcelMerge.GUI
         protected override void OnStartup(StartupEventArgs e)
         {
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+            AppDomain.CurrentDomain.ProcessExit += (sender, args) =>
+                RuntimeLog.Write("PROCESS_EXIT", "OS process exit event");
+            DispatcherUnhandledException += (sender, args) =>
+            {
+                RuntimeLog.Exception("WPF DispatcherUnhandledException", args.Exception);
+                // Do not pretend a failed UI operation succeeded.
+            };
+            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (sender, args) =>
+                RuntimeLog.Exception("UnobservedTaskException", args.Exception);
+            ComparisonTelemetry.StageChanged += RuntimeLog.Stage;
+            RuntimeLog.Write("APP_STARTUP", "Main window startup");
 
             base.OnStartup(e);
 
@@ -73,24 +87,17 @@ namespace ExcelMerge.GUI
         private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             var exception = e.ExceptionObject as Exception;
-            if (exception != null)
+            RuntimeLog.Exception("FATAL UnhandledException terminating=" + e.IsTerminating,
+                exception ?? new Exception(Convert.ToString(e.ExceptionObject)));
+            try
             {
-                bool showDialog = true;
-                bool executeExternalCommand = true;
-                if (exception is Exceptions.ExcelMergeException)
-                    showDialog = (exception as Exceptions.ExcelMergeException).ShowDialog;
-
-                if (showDialog)
-                {
-                    var message = $"是否执行外部命令？ \n\n------------------------------------\n {exception.Message}\n{exception.StackTrace}";
-                    var result = MessageBox.Show(message, "发生错误", MessageBoxButton.YesNo);
-                    executeExternalCommand = result == MessageBoxResult.Yes;
-                }
-
-                if (executeExternalCommand)
-                    ExecuteExternalCommand();
+                MessageBox.Show(
+                    "SmartMerge 遇到未处理异常，诊断日志已保存。\\n\\n" +
+                    (exception == null ? "未知错误" : exception.Message) +
+                    "\\n\\n日志文件：\\n" + RuntimeLog.CurrentLogFile,
+                    "SmartMerge · 程序错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-
+            catch { }
             Environment.Exit(-1);
         }
 
