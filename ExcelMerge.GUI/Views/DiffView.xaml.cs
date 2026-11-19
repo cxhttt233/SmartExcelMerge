@@ -803,6 +803,7 @@ namespace ExcelMerge.GUI.Views
 
             args = new DiffViewEventArgs<FastGridControl>(null, container, TargetType.First);
             DataGridEventDispatcher.Instance.DispatchDisplayFormatChangeEvent(args, ShowOnlyDiffRadioButton.IsChecked.Value);
+            ApplyDiffCategoryFilters();
             DataGridEventDispatcher.Instance.DispatchPostExecuteDiffEvent(args);
 
             var summary = diff.CreateSummary();
@@ -919,7 +920,45 @@ namespace ExcelMerge.GUI.Views
             if (lines.Any() && lines.Last() == string.Empty)
                 lines.RemoveAt(lines.Count - 1);
 
-            return lines.Select(line => line.Split('\t').AsEnumerable()).ToList();
+            // Quoted Excel clipboard cells can contain embedded newlines.
+            var table = new List<List<string>>();
+            var row = new List<string>();
+            var cell = new StringBuilder();
+            bool quoted = false;
+            for (int i = 0; i < text.Length; i++)
+            {
+                char ch = text[i];
+                if (ch == '"')
+                {
+                    if (quoted && i + 1 < text.Length && text[i + 1] == '"')
+                    {
+                        cell.Append('"');
+                        i++;
+                    }
+                    else if (quoted || cell.Length == 0)
+                        quoted = !quoted;
+                    else
+                        cell.Append(ch);
+                }
+                else if (!quoted && (ch == '\t' || ch == '\n'))
+                {
+                    row.Add(cell.ToString());
+                    cell.Clear();
+                    if (ch == '\n')
+                    {
+                        table.Add(row);
+                        row = new List<string>();
+                    }
+                }
+                else
+                    cell.Append(ch);
+            }
+            if (cell.Length > 0 || row.Count > 0 || text.EndsWith("\t", StringComparison.Ordinal))
+            {
+                row.Add(cell.ToString());
+                table.Add(row);
+            }
+            return table;
         }
 
         private string GetClipboardTextOrCachedRows()
@@ -1213,6 +1252,33 @@ namespace ExcelMerge.GUI.Views
         {
             var args = new DiffViewEventArgs<FastGridControl>(null, container, TargetType.First);
             DataGridEventDispatcher.Instance.DispatchDisplayFormatChangeEvent(args, true);
+            ApplyDiffCategoryFilters();
+        }
+
+        private void DiffCategoryCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            ApplyDiffCategoryFilters();
+        }
+
+        private void ApplyDiffCategoryFilters()
+        {
+            if (ShowOnlyDiffRadioButton == null || ShowOnlyDiffRadioButton.IsChecked != true ||
+                ShowAddedRowsCheckBox == null || ShowModifiedRowsCheckBox == null || ShowRemovedRowsCheckBox == null)
+                return;
+
+            foreach (var grid in new[] { SrcDataGrid, DstDataGrid })
+            {
+                var model = grid.Model as DiffGridModel;
+                if (model == null)
+                    continue;
+
+                model.HideEqualRows(ShowAddedRowsCheckBox.IsChecked == true,
+                    ShowModifiedRowsCheckBox.IsChecked == true,
+                    ShowRemovedRowsCheckBox.IsChecked == true);
+                var args = new DiffViewEventArgs<FastGridControl>(grid, container);
+                DataGridEventDispatcher.Instance.DispatchModelUpdateEvent(args);
+                grid.FirstVisibleRowScrollIndex = 0;
+            }
         }
 
         private bool ValidateDataGrids()
@@ -1464,6 +1530,15 @@ namespace ExcelMerge.GUI.Views
             }
         }
 
+        private static string FormatExcelClipboardCell(string value, string separator)
+        {
+            value = value ?? string.Empty;
+            bool quote = value.IndexOf('"') >= 0 || value.IndexOf('\t') >= 0 ||
+                value.IndexOf('\r') >= 0 || value.IndexOf('\n') >= 0 ||
+                value.Contains(separator);
+            return quote ? "\"" + value.Replace("\"", "\"\"") + "\"" : value;
+        }
+
         private void CopyToClipboardSelectedCells(string separator, FastGridControl grid)
         {
             if (grid == null)
@@ -1486,7 +1561,7 @@ namespace ExcelMerge.GUI.Views
                         .GroupBy(cell => cell.Row.Value)
                         .OrderBy(group => group.Key)
                         .Select(group => string.Join(separator,
-                            group.Select(cell => model.GetCellText(cell.Row.Value, cell.Column.Value)))));
+                            group.Select(cell => FormatExcelClipboardCell(model.GetCellText(cell.Row.Value, cell.Column.Value), separator)))));
             }
             else
             {
@@ -1496,7 +1571,7 @@ namespace ExcelMerge.GUI.Views
 
                 text = string.Join(separator,
                     Enumerable.Range(0, model.ColumnCount)
-                        .Select(column => model.GetCellText(currentCell.Row.Value, column)));
+                        .Select(column => FormatExcelClipboardCell(model.GetCellText(currentCell.Row.Value, column), separator)));
             }
 
             SetCopiedRowsText(text);
@@ -1802,7 +1877,7 @@ namespace ExcelMerge.GUI.Views
 
             var text = string.Join(Environment.NewLine,
                 rows.Select(row => string.Join("\t",
-                    Enumerable.Range(0, model.ColumnCount).Select(column => model.GetCellText(row, column)))));
+                    Enumerable.Range(0, model.ColumnCount).Select(column => FormatExcelClipboardCell(model.GetCellText(row, column), "\t")))));
 
             SetCopiedRowsText(text);
         }
