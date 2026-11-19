@@ -19,6 +19,112 @@ namespace ExcelMerge.GUI.Models
         private CellDecoration decoration = CellDecoration.None;
         private string toolTipText = string.Empty;
         private Dictionary<int, int> rowIndexMap = new Dictionary<int, int>();
+        private Dictionary<int, int> columnIndexMap = new Dictionary<int, int>();
+        private readonly HashSet<int> manuallyHiddenRows = new HashSet<int>();
+        private readonly HashSet<int> manuallyHiddenColumns = new HashSet<int>();
+        private readonly HashSet<int> pinnedRows = new HashSet<int>();
+        private readonly HashSet<int> pinnedColumns = new HashSet<int>();
+        private readonly HashSet<int> diffHiddenRows = new HashSet<int>();
+
+        public int ManuallyHiddenRowCount { get { return manuallyHiddenRows.Count; } }
+        public int ManuallyHiddenColumnCount { get { return manuallyHiddenColumns.Count; } }
+        public int PinnedRowCount { get { return pinnedRows.Count; } }
+        public int PinnedColumnCount { get { return pinnedColumns.Count; } }
+
+        // View-only arrangements: neither sheet differences nor underlying workbooks are modified.
+        public bool HideUserRows(IEnumerable<int> indices)
+        {
+            var valid = indices.Where(i => i >= 0 && i < RowCount).Distinct()
+                .Where(i => !manuallyHiddenRows.Contains(i)).ToList();
+            if (valid.Count == 0 || RowCount - manuallyHiddenRows.Count - valid.Count < 1)
+                return false;
+
+            manuallyHiddenRows.UnionWith(valid);
+            RefreshRowArrangement();
+            return true;
+        }
+
+        public bool HideUserColumns(IEnumerable<int> indices)
+        {
+            var valid = indices.Where(i => i >= 0 && i < ColumnCount).Distinct()
+                .Where(i => !manuallyHiddenColumns.Contains(i)).ToList();
+            if (valid.Count == 0 || ColumnCount - manuallyHiddenColumns.Count - valid.Count < 1)
+                return false;
+
+            manuallyHiddenColumns.UnionWith(valid);
+            RefreshColumnArrangement();
+            return true;
+        }
+
+        public void RestoreUserRows()
+        {
+            manuallyHiddenRows.Clear();
+            RefreshRowArrangement();
+        }
+
+        public void RestoreUserColumns()
+        {
+            manuallyHiddenColumns.Clear();
+            RefreshColumnArrangement();
+        }
+
+        public void PinRows(IEnumerable<int> indices)
+        {
+            pinnedRows.UnionWith(indices.Where(i => i >= 0 && i < RowCount));
+            RefreshRowArrangement();
+        }
+
+        public void PinColumns(IEnumerable<int> indices)
+        {
+            pinnedColumns.UnionWith(indices.Where(i => i >= 0 && i < ColumnCount));
+            RefreshColumnArrangement();
+        }
+
+        public void RestoreRowOrder()
+        {
+            pinnedRows.Clear();
+            RefreshRowArrangement();
+        }
+
+        public void RestoreColumnOrder()
+        {
+            pinnedColumns.Clear();
+            RefreshColumnArrangement();
+        }
+
+        private void RefreshRowArrangement()
+        {
+            var hidden = new HashSet<int>(diffHiddenRows);
+            hidden.UnionWith(manuallyHiddenRows);
+            var frozen = new HashSet<int>(pinnedRows);
+            frozen.ExceptWith(hidden);
+
+            rowIndexMap.Clear();
+            var visible = frozen.OrderBy(i => i).Concat(
+                Enumerable.Range(0, RowCount).Where(i => !hidden.Contains(i) && !frozen.Contains(i)));
+            int visual = 0;
+            foreach (var index in visible)
+                rowIndexMap[visual++] = index;
+
+            SetRowArrange(hidden, frozen);
+        }
+
+        private void RefreshColumnArrangement()
+        {
+            var hidden = new HashSet<int>(manuallyHiddenColumns);
+            var frozen = new HashSet<int>(pinnedColumns);
+            frozen.ExceptWith(hidden);
+
+            columnIndexMap.Clear();
+            var visible = frozen.OrderBy(i => i).Concat(
+                Enumerable.Range(0, ColumnCount).Where(i => !hidden.Contains(i) && !frozen.Contains(i)));
+            int visual = 0;
+            foreach (var index in visible)
+                columnIndexMap[visual++] = index;
+
+            SetColumnArrange(hidden, frozen);
+        }
+
 
         public override int ColumnCount
         {
@@ -185,7 +291,11 @@ namespace ExcelMerge.GUI.Models
 
             ExcelRowDiff rowDiff;
             if (TryGetRowDiff(row, out rowDiff, direct))
+            {
+                if (direct && columnIndexMap.ContainsKey(column))
+                    column = columnIndexMap[column];
                 return rowDiff.Cells.TryGetValue(column, out cellDiff);
+            }
 
             return false;
         }
@@ -349,7 +459,17 @@ namespace ExcelMerge.GUI.Models
             var swapped = rowIndexMap.ToDictionary(i => i.Value, i => i.Key);
             int visualRow;
             if (swapped.TryGetValue(realCellAddress.Row.Value, out visualRow))
-                return new FastGridCellAddress(visualRow, realCellAddress.Column.Value, realCellAddress.IsGridHeader);
+            {
+                int visualColumn = realCellAddress.Column.Value;
+                if (columnIndexMap.Any())
+                {
+                    var match = columnIndexMap.FirstOrDefault(p => p.Value == realCellAddress.Column.Value);
+                    if (!columnIndexMap.ContainsKey(match.Key) || match.Value != realCellAddress.Column.Value)
+                        return FastGridCellAddress.Empty;
+                    visualColumn = match.Key;
+                }
+                return new FastGridCellAddress(visualRow, visualColumn, realCellAddress.IsGridHeader);
+            }
 
             return rowIndexMap.Any() ? FastGridCellAddress.Empty : realCellAddress;
         }
@@ -360,10 +480,12 @@ namespace ExcelMerge.GUI.Models
                 return FastGridCellAddress.Empty;
 
             int realRow;
-            if (rowIndexMap.TryGetValue(visualCellAddress.Row.Value, out realRow))
-                return new FastGridCellAddress(realRow, visualCellAddress.Column.Value, visualCellAddress.IsGridHeader);
-
-            return rowIndexMap.Any() ? FastGridCellAddress.Empty : visualCellAddress;
+            if (!rowIndexMap.TryGetValue(visualCellAddress.Row.Value, out realRow))
+                return rowIndexMap.Any() ? FastGridCellAddress.Empty : visualCellAddress;
+            int realColumn;
+            if (!columnIndexMap.TryGetValue(visualCellAddress.Column.Value, out realColumn))
+                realColumn = visualCellAddress.Column.Value;
+            return new FastGridCellAddress(realRow, realColumn, visualCellAddress.IsGridHeader);
         }
 
         public FastGridCellAddress GetNextModifiedCell(FastGridCellAddress current)
@@ -600,36 +722,25 @@ namespace ExcelMerge.GUI.Models
 
         public void HideEqualRows(bool showAdded, bool showModified, bool showRemoved)
         {
-            rowIndexMap.Clear();
-            var hiddenRows = new HashSet<int>();
-            var visibleIndex = 0;
-            var originalIndex = 0;
-
-            foreach (var r in SheetDiff.Rows)
+            diffHiddenRows.Clear();
+            foreach (var entry in SheetDiff.Rows)
             {
-                var row = r.Value;
-                // Classify entire rows first; changed cells in ordinary rows are modifications.
+                var row = entry.Value;
                 bool added = row.IsAdded();
                 bool removed = row.IsRemoved();
                 bool modified = row.IsModified() || row.Cells.Any(c => c.Value.Status == ExcelCellStatus.Modified);
                 bool visible = added ? showAdded : removed ? showRemoved : modified && showModified;
-
-                if (visible)
-                    rowIndexMap.Add(visibleIndex++, originalIndex);
-                else
-                    hiddenRows.Add(r.Key);
-
-                originalIndex++;
+                if (!visible)
+                    diffHiddenRows.Add(entry.Key);
             }
-
-            SetRowArrange(hiddenRows, new HashSet<int>());
+            RefreshRowArrangement();
         }
 
         public void ShowEqualRows()
         {
-            SetRowArrange(new HashSet<int>(), new HashSet<int>());
-
-            rowIndexMap.Clear();
+            diffHiddenRows.Clear();
+            RefreshRowArrangement();
         }
+
     }
 }
