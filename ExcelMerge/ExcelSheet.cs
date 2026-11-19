@@ -127,21 +127,30 @@ namespace ExcelMerge
             cancellation.ThrowIfCancellationRequested();
             config = config ?? new ExcelSheetDiffConfig();
 
+            ComparisonTelemetry.Report("diff.begin source_rows=" + src.Rows.Count +
+                " dest_rows=" + dst.Rows.Count + " smart=" + config.UseSmartTableDiff);
             if (config.UseSmartTableDiff)
             {
+                ComparisonTelemetry.Report("diff.key_analysis");
                 var prepared = RowKeySelectionEngine.Prepare(src, dst, config, cancellation);
                 cancellation.ThrowIfCancellationRequested();
+                ComparisonTelemetry.Report("diff.smart_match");
                 var diff = SmartDiff(prepared.Source, prepared.Destination, config, cancellation);
+                ComparisonTelemetry.Report("diff.smart_completed");
                 cancellation.ThrowIfCancellationRequested();
                 if (prepared.SyntheticSourceColumn.HasValue && prepared.SyntheticDestinationColumn.HasValue)
                     RowKeySelectionEngine.RemoveSyntheticColumn(diff, prepared.SyntheticSourceColumn.Value, prepared.SyntheticDestinationColumn.Value);
+                ComparisonTelemetry.Report("diff.done");
                 return diff;
             }
 
             // Legacy whole-sheet LCS is quadratic. Do not freeze the UI on large files.
             EnsureSafeLegacySize(src, dst);
             cancellation.ThrowIfCancellationRequested();
-            return DiffLegacy(src, dst, config);
+            ComparisonTelemetry.Report("diff.legacy_match");
+            var legacyResult = DiffLegacy(src, dst, config);
+            ComparisonTelemetry.Report("diff.done_legacy");
+            return legacyResult;
         }
 
         private static void EnsureSafeLegacySize(ExcelSheet src, ExcelSheet dst)
