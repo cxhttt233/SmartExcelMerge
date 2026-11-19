@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace ExcelMerge
 {
@@ -34,8 +35,10 @@ namespace ExcelMerge
             public int DestinationIndex;
         }
 
-        internal static PreparedRowKeySelection Prepare(ExcelSheet src, ExcelSheet dst, ExcelSheetDiffConfig config)
+        internal static PreparedRowKeySelection Prepare(ExcelSheet src, ExcelSheet dst, ExcelSheetDiffConfig config,
+            CancellationToken cancellation = default(CancellationToken))
         {
+            cancellation.ThrowIfCancellationRequested();
             var result = new PreparedRowKeySelection { Source = src, Destination = dst };
             var headers = DetectHeaders(src, dst, config.SrcHeaderIndex, config.DstHeaderIndex);
             config.SrcHeaderIndex = headers.Item1;
@@ -57,7 +60,10 @@ namespace ExcelMerge
             };
 
             foreach (var pair in pairs)
+            {
+                cancellation.ThrowIfCancellationRequested();
                 analysis.Candidates.Add(Analyze(src, dst, config, new[] { pair }));
+            }
 
             List<ColumnPair> selected = null;
             if (manual.Count > 0)
@@ -88,6 +94,7 @@ namespace ExcelMerge
                 return result;
             }
 
+            cancellation.ThrowIfCancellationRequested();
             var selectedAnalysis = Analyze(src, dst, config, selected);
             if (manual.Count > 0)
                 selectedAnalysis.Reason = BuildManualPreviewReason(selectedAnalysis, selected.Count);
@@ -130,6 +137,7 @@ namespace ExcelMerge
                 analysis.SelectionReason = "使用手动联合主键；已按所选字段组合后重新计算非空率、唯一率、重合率和匹配数量。";
             }
 
+            cancellation.ThrowIfCancellationRequested();
             config.RowKeyAnalysis = analysis;
             RowKeySelectionRuntime.SetAnalysis(config.SrcSheetIndex, config.DstSheetIndex, analysis);
             return result;
