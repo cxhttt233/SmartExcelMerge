@@ -21,16 +21,26 @@ namespace ExcelMerge
             if (Path.GetExtension(path) == ".tsv")
                 return CreateFromTsv(path, config);
 
+            ComparisonTelemetry.Report("workbook.open " + Path.GetFileName(path));
             var wb = new ExcelWorkbook();
             using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
+                ComparisonTelemetry.Report("workbook.parse_npoi " + Path.GetFileName(path) + " bytes=" + input.Length);
                 var srcWb = WorkbookFactory.Create(input);
+                ComparisonTelemetry.Report("workbook.parsed " + Path.GetFileName(path) + " sheets=" + srcWb.NumberOfSheets);
                 try
                 {
                     for (int i = 0; i < srcWb.NumberOfSheets; i++)
                     {
                         var srcSheet = srcWb.GetSheetAt(i);
-                        wb.Sheets.Add(srcSheet.SheetName, ExcelSheet.Create(srcSheet, config));
+                        ComparisonTelemetry.Report("sheet.read " + Path.GetFileName(path) + " sheet=" + i +
+                            " physical_rows=" + srcSheet.PhysicalNumberOfRows + " last_row=" + srcSheet.LastRowNum);
+                        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                        var parsedSheet = ExcelSheet.Create(srcSheet, config);
+                        stopwatch.Stop();
+                        ComparisonTelemetry.Report("sheet.done " + Path.GetFileName(path) + " sheet=" + i +
+                            " kept_rows=" + parsedSheet.Rows.Count + " elapsed_ms=" + stopwatch.ElapsedMilliseconds);
+                        wb.Sheets.Add(srcSheet.SheetName, parsedSheet);
                     }
                 }
                 finally
@@ -39,6 +49,7 @@ namespace ExcelMerge
                 }
             }
 
+            ComparisonTelemetry.Report("workbook.done " + Path.GetFileName(path) + " sheets=" + wb.Sheets.Count);
             return wb;
         }
 
