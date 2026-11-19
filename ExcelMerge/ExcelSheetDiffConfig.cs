@@ -27,5 +27,7 @@ namespace ExcelMerge
         public int DstRowHeaderIndex { get; set; }
         public string SrcRowHeaderName { get; set; }
         public string DstRowHeaderName { get; set; }
+        public IList<string> ManualRowKeyNames { get; set; }
+        public RowKeyAnalysis RowKeyAnalysis { get; set; }
     }
 }
