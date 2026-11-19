@@ -1244,6 +1244,9 @@ namespace ExcelMerge.GUI.Views
 
         private void ShowAllRadioButton_Checked(object sender, RoutedEventArgs e)
         {
+            if (DiffCategoryFilterPanel != null)
+                DiffCategoryFilterPanel.Visibility = Visibility.Collapsed;
+
             var args = new DiffViewEventArgs<FastGridControl>(null, container, TargetType.First);
             DataGridEventDispatcher.Instance.DispatchDisplayFormatChangeEvent(args, false);
         }
