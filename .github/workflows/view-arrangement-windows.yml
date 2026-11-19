@@ -5,6 +5,7 @@ on:
     branches:
       - feature/view-arrange-20261119
       - feature/smartmerge-view-session-20261119
+      - fix/cancel-large-diff-20261119
       - master
     paths:
       - 'ExcelMerge.GUI/**'
@@ -43,16 +44,16 @@ jobs:
           Copy-Item 'docs/demo/smart-diff-before.xlsx' 'ExcelMerge.GUI/bin/Release/samples/'
           Copy-Item 'docs/demo/smart-diff-after.xlsx' 'ExcelMerge.GUI/bin/Release/samples/'
           Copy-Item 'docs/demo/视图整理试用说明.txt' 'ExcelMerge.GUI/bin/Release/试用说明.txt'
-          Compress-Archive -Path 'ExcelMerge.GUI/bin/Release/*' -DestinationPath 'SmartMerge-20261119-view-session-Windows-EXE.zip' -Force
+          Compress-Archive -Path 'ExcelMerge.GUI/bin/Release/*' -DestinationPath 'SmartMerge-20261119-cancel-large-diff-Windows-EXE.zip' -Force
       - name: Upload portable Windows EXE
         uses: actions/upload-artifact@v4
         with:
-          name: SmartMerge-ViewSession-Windows-EXE
-          path: SmartMerge-20261119-view-session-Windows-EXE.zip
+          name: SmartMerge-CancelAndLargeDiff-Windows-EXE
+          path: SmartMerge-20261119-cancel-large-diff-Windows-EXE.zip
       - name: Publish tested release from master only
         if: github.ref == 'refs/heads/master'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.3.8-view-session --repo cxhttt233/SmartExcelMerge --target "${{ github.sha }}" --title "SmartMerge 1.3.8 · 精确恢复与视图保留" --notes "左右对照视图可按序号或内容搜索并选择恢复指定隐藏行列。切换工作表或重新比较后，只在记录映射一致时恢复本次会话中的隐藏与置顶状态，避免数据错位。保留 1.3.7 的隐藏、置顶、左右同步和差异筛选功能。所有操作不修改 Excel 原文件。Windows 编译、主键与视图回归测试通过。" '.\SmartMerge-20261119-view-session-Windows-EXE.zip'
+          gh release create v1.3.9-cancel-large-diff --repo cxhttt233/SmartExcelMerge --target "${{ github.sha }}" --title "SmartMerge 1.3.9 · 修复取消报错与大表计算卡顿" --notes "修复取消计算后继续创建空差异视图导致的空引用；后台异常直接报告；大表无可靠主键时不再进入高耗时逐行对比；新增行按二分查找对齐；显示明确取消操作并保留已有表格。包含回归测试、示例文件和中文说明。" '.\SmartMerge-20261119-cancel-large-diff-Windows-EXE.zip'
