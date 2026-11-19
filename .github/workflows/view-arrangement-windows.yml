@@ -6,6 +6,7 @@ on:
       - feature/view-arrange-20261119
       - feature/smartmerge-view-session-20261119
       - fix/cancel-large-diff-20261119
+      - fix/hang-diagnostics-20261119
       - master
     paths:
       - 'ExcelMerge.GUI/**'
@@ -44,16 +45,16 @@ jobs:
           Copy-Item 'docs/demo/smart-diff-before.xlsx' 'ExcelMerge.GUI/bin/Release/samples/'
           Copy-Item 'docs/demo/smart-diff-after.xlsx' 'ExcelMerge.GUI/bin/Release/samples/'
           Copy-Item 'docs/demo/视图整理试用说明.txt' 'ExcelMerge.GUI/bin/Release/试用说明.txt'
-          Compress-Archive -Path 'ExcelMerge.GUI/bin/Release/*' -DestinationPath 'SmartMerge-20261119-cancel-large-diff-Windows-EXE.zip' -Force
+          Compress-Archive -Path 'ExcelMerge.GUI/bin/Release/*' -DestinationPath 'SmartMerge-20261119-hang-diagnostics-Windows-EXE.zip' -Force
       - name: Upload portable Windows EXE
         uses: actions/upload-artifact@v4
         with:
-          name: SmartMerge-CancelAndLargeDiff-Windows-EXE
-          path: SmartMerge-20261119-cancel-large-diff-Windows-EXE.zip
+          name: SmartMerge-HangDiagnostics-Windows-EXE
+          path: SmartMerge-20261119-hang-diagnostics-Windows-EXE.zip
       - name: Publish tested release from master only
         if: github.ref == 'refs/heads/master'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.3.9-cancel-large-diff --repo cxhttt233/SmartExcelMerge --target "${{ github.sha }}" --title "SmartMerge 1.3.9 · 修复取消报错与大表计算卡顿" --notes "修复取消计算后继续创建空差异视图导致的空引用；后台异常直接报告；大表无可靠主键时不再进入高耗时逐行对比；新增行按二分查找对齐；显示明确取消操作并保留已有表格。包含回归测试、示例文件和中文说明。" '.\SmartMerge-20261119-cancel-large-diff-Windows-EXE.zip'
+          gh release create v1.3.10-hang-diagnostics --repo cxhttt233/SmartExcelMerge --target "${{ github.sha }}" --title "SmartMerge 1.3.10 · 卡顿崩溃诊断日志" --notes "轻量本地诊断版：记录 Excel/NPOI 解析阶段、扫描行/列/单元格规模、主键分析及差异匹配耗时、手动取消、后台错误和程序异常。独立看门狗在 UI 超过 12 秒不响应时周期记录 CPU 与内存。通过“视图→打开诊断日志文件夹”定位日志；日志默认保存在本机 LocalAppData/SmartMerge/logs，不自动上传。保留上一版所有功能。" '.\SmartMerge-20261119-hang-diagnostics-Windows-EXE.zip'
