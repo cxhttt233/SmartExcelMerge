@@ -791,10 +791,11 @@ namespace ExcelMerge.GUI.Views
             string srcSheetName,
             string dstSheetName)
         {
+            RememberCurrentViewLayout();
             SrcDataGrid.Model = new DiffGridModel(diff, DiffType.Source);
             DstDataGrid.IsReadOnly = !CanEditDst();
             DstDataGrid.Model = new DiffGridModel(diff, DiffType.Dest, CanEditDst() ? (Action<int, int, string>)ApplyDstCellEdit : null);
-            // Recomparison creates a fresh layout; manual hiding/pinning never changes workbook data.
+            RestoreSessionViewLayout(srcSheetName, dstSheetName);
             RefreshViewLayoutStatus();
 
             var args = new DiffViewEventArgs<FastGridControl>(SrcDataGrid, container);
