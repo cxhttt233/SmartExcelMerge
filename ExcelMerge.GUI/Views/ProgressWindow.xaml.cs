@@ -17,6 +17,11 @@ namespace ExcelMerge.GUI.Views
             InitializeComponent();
         }
 
+        private void CancelProgress_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+        }
+
         public static bool DoWorkWithModal(Action<IProgress<string>, CancellationToken> work)
         {
             if (work == null) throw new ArgumentNullException("work");
