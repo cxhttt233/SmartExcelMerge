@@ -35,6 +35,10 @@
       <Project>{BFF4C33C-7395-4428-8587-AA22062E4A24}</Project>
       <Name>ExcelMerge</Name>
     </ProjectReference>
+    <ProjectReference Include="..\FastWpfGrid\FastWpfGrid\FastWpfGrid.csproj">
+      <Project>{E9D6F03C-BFB5-4D31-A15E-7F789B4BBCC3}</Project>
+      <Name>FastWpfGrid</Name>
+    </ProjectReference>
     <ProjectReference Include="..\ExcelMerge.GUI\ExcelMerge.GUI.csproj">
       <Project>{9D45A825-0446-47AA-BEF2-C613B4DCFA66}</Project>
       <Name>ExcelMerge.GUI</Name>
