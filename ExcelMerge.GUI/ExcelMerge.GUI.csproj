@@ -188,6 +188,7 @@
     </Compile>
     <Compile Include="Views\KeyAnalysisWindow.cs" />
     <Compile Include="Views\DiffView.KeyAnalysis.cs" />
+    <Compile Include="Views\DiffView.Layout.cs" />
     <Compile Include="Views\DiffView.xaml.cs">
       <DependentUpon>DiffView.xaml</DependentUpon>
     </Compile>
