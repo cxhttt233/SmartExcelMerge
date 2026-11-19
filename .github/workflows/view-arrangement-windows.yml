@@ -58,4 +58,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.3.10-hang-diagnostics --repo cxhttt233/SmartExcelMerge --target "${{ github.sha }}" --title "SmartMerge 1.3.10 · 卡顿崩溃诊断日志" --notes "轻量本地诊断版：记录 Excel/NPOI 解析阶段、扫描行/列/单元格规模、主键分析及差异匹配耗时、手动取消、后台错误和程序异常。独立看门狗在 UI 超过 12 秒不响应时周期记录 CPU 与内存。通过“视图→打开诊断日志文件夹”定位日志；日志默认保存在本机 LocalAppData/SmartMerge/logs，不自动上传。保留上一版所有功能。" '.\SmartMerge-20261119-hang-diagnostics-Windows-EXE.zip'
+          gh release create v1.3.10-hang-diagnostics --repo cxhttt233/SmartExcelMerge --target "${{ github.sha }}" --title "SmartMerge 1.3.10 Hang Diagnostics" --notes "Local diagnostic logging for Excel parsing, workbook range, row matching, progress, cancel and crashes. See included Chinese guide. No automatic uploads." '.\SmartMerge-20261119-hang-diagnostics-Windows-EXE.zip'
