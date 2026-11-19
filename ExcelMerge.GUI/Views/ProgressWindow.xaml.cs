@@ -53,23 +53,14 @@ namespace ExcelMerge.GUI.Views
 
                 worker.DoWork += (source, workerArgs) =>
                 {
-                    try
-                    {
-                        token.ThrowIfCancellationRequested();
-                        work(progress, token);
-                        token.ThrowIfCancellationRequested();
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // User cancellation, not an application error.
-                    }
-                    catch (Exception exception)
-                    {
-                        workerError = exception;
-                    }
+                    token.ThrowIfCancellationRequested();
+                    work(progress, token);
+                    token.ThrowIfCancellationRequested();
                 };
                 worker.RunWorkerCompleted += (source, workerArgs) =>
                 {
+                    // BackgroundWorker marshals exceptions to Error on the UI thread.
+                    workerError = workerArgs.Error;
                     completed = true;
                     if (!abandoned && window.IsVisible)
                         window.Close();
