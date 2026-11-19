@@ -186,6 +186,8 @@
     <Compile Include="Views\ExternalCommandsWindow.xaml.cs">
       <DependentUpon>ExternalCommandsWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Views\KeyAnalysisWindow.cs" />
+    <Compile Include="Views\DiffView.KeyAnalysis.cs" />
     <Compile Include="Views\DiffView.xaml.cs">
       <DependentUpon>DiffView.xaml</DependentUpon>
     </Compile>
