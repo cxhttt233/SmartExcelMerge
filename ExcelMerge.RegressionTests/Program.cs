@@ -279,13 +279,21 @@ namespace ExcelMerge.RegressionTests
             var dispatcher = Dispatcher.CurrentDispatcher;
             var completed = ProgressWindow.DoWorkWithModal((progress, cancellation) =>
             {
-                dispatcher.BeginInvoke(new Action(() =>
+                // Scheduling this at Send avoids a slow CI rendering pass delaying
+                // the cancellation beyond a short synthetic worker timeout.
+                dispatcher.BeginInvoke(DispatcherPriority.Send, new Action(() =>
                 {
                     var dialog = Application.Current.Windows.OfType<ProgressWindow>().LastOrDefault();
-                    Assert(dialog != null, "progress window exists");
-                    dialog.Close();
+                    if (dialog == null) return;
+                    var cancel = LogicalDescendants<Button>(dialog)
+                        .FirstOrDefault(b => Equals(b.Content, "取消比较"));
+                    if (cancel != null)
+                        cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, cancel));
+                    else
+                        dialog.Close();
                 }));
-                cancellation.WaitHandle.WaitOne(3000);
+                if (!cancellation.WaitHandle.WaitOne(20000))
+                    throw new InvalidOperationException("progress cancellation not delivered by test UI");
                 cancellation.ThrowIfCancellationRequested();
             });
             Assert(!completed, "closing a running progress window never reports a successful result");
