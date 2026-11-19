@@ -4,6 +4,9 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using ExcelMerge.GUI.Views;
+using ExcelMerge.GUI.Models;
+using ExcelMerge.GUI.Settings;
+using System.Reflection;
 
 namespace ExcelMerge.RegressionTests
 {
@@ -21,6 +24,7 @@ namespace ExcelMerge.RegressionTests
             Run("invalid fallback", Invalid);
             Run("live composite preview", LiveCompositePreview);
             Run("key analysis window", KeyAnalysisWindowSmoke);
+            Run("view hide restore and pin", ViewHideRestoreAndPin);
             Console.WriteLine(failures == 0 ? "All regression tests passed." : failures + " failed.");
             return failures == 0 ? 0 : 1;
         }
@@ -145,6 +149,47 @@ namespace ExcelMerge.RegressionTests
             Assert(window.PreviewSummaryText.Contains("联合非空率"), "window composite coverage");
             Assert(window.PreviewSummaryText.Contains("联合唯一率"), "window composite uniqueness");
             Assert(window.PreviewSummaryText.Contains("匹配唯一键：3"), "window composite match count");
+        }
+
+        private static void ViewHideRestoreAndPin()
+        {
+            var app = ExcelMerge.GUI.App.Instance ?? new ExcelMerge.GUI.App();
+            typeof(ExcelMerge.GUI.App).GetProperty("Setting", BindingFlags.Instance | BindingFlags.Public)
+                .SetValue(app, new ApplicationSetting(), null);
+            var config = Config();
+            RowKeySelectionRuntime.Clear();
+            var diff = ExcelSheet.Diff(
+                Sheet(new[] { "ID", "Name" }, new[] { "1", "A" }, new[] { "2", "B" }, new[] { "3", "C" }),
+                Sheet(new[] { "ID", "Name" }, new[] { "1", "A" }, new[] { "2", "B2" }, new[] { "3", "C" }),
+                config);
+            var model = new DiffGridModel(diff, DiffType.Source);
+            Assert(model.ColumnCount == 2 && model.RowCount == 4, "diff model dimensions");
+
+            Assert(model.HideUserRows(new[] { 1 }), "hide a selected row");
+            Assert(model.GetHiddenRows(null).Contains(1), "hidden row reported");
+            Assert(model.GetCellText(0, 0, true) == "ID", "visible header after row hiding");
+            model.HideEqualRows(false, true, false);
+            Assert(model.GetHiddenRows(null).Contains(1), "manual hidden row survives diff-only filter");
+            model.ShowEqualRows();
+            Assert(model.GetHiddenRows(null).Contains(1), "manual hidden row survives show-all");
+            model.RestoreUserRows();
+            Assert(!model.GetHiddenRows(null).Contains(1), "restore manual row");
+
+            Assert(model.HideUserColumns(new[] { 1 }), "hide selected column");
+            Assert(model.GetHiddenColumns(null).Contains(1), "hidden column reported");
+            Assert(!model.HideUserColumns(new[] { 0 }), "do not hide the final column");
+            model.RestoreUserColumns();
+            Assert(model.GetHiddenColumns(null).Count == 0, "restore manual column");
+
+            model.PinRows(new[] { 3 });
+            Assert(model.GetFrozenRows(null).Contains(3), "pin selected row");
+            Assert(model.GetCellText(0, 0, true) == "3", "pinned row comes first in visual lookup");
+            model.PinColumns(new[] { 1 });
+            Assert(model.GetFrozenColumns(null).Contains(1), "pin selected column");
+            Assert(model.GetCellText(0, 0, true) == "C", "pinned column comes first in visual lookup");
+            model.RestoreRowOrder();
+            model.RestoreColumnOrder();
+            Assert(model.GetFrozenRows(null).Count == 0 && model.GetFrozenColumns(null).Count == 0, "restore default order");
         }
 
         private static void KeyAnalysisWindowSmoke()
