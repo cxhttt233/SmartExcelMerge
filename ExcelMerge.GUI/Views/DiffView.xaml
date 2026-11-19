@@ -95,6 +95,8 @@
               <MenuItem Header="恢复全部视图调整" Click="RestoreViewLayout_Click"/>
               <Separator/>
               <MenuItem Header="本次会话自动记住各工作表的布局" IsEnabled="False"/>
+              <Separator/>
+              <MenuItem Header="打开诊断日志文件夹…" Click="OpenDiagnosticLog_Click"/>
             </MenuItem>
           </Menu>
           <TextBlock x:Name="ViewLayoutStatusTextBlock" VerticalAlignment="Center" Margin="4,0,3,0"
