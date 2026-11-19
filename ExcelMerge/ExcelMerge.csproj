@@ -75,6 +75,8 @@
     <Compile Include="ExcelColumnStatus.cs" />
     <Compile Include="ExcelReader.cs" />
     <Compile Include="ExcelRow.cs" />
+    <Compile Include="RowKeyAnalysis.cs" />
+    <Compile Include="RowKeySelectionEngine.cs" />
     <Compile Include="ExcelRowDiff.cs" />
     <Compile Include="ExcelSheet.cs" />
     <Compile Include="ExcelSheetSmartDiff.cs" />
