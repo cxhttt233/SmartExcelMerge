@@ -1,22 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System;
 using System.ComponentModel;
+using System.Runtime.ExceptionServices;
+using System.Threading;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace ExcelMerge.GUI.Views
 {
     /// <summary>
-    /// ProgressWindow.xaml の相互作用ロジック
+    /// A cancellable progress dialog. Closing the dialog never applies an incomplete result.
+    /// The worker receives a cancellation token and must check it at safe boundaries.
     /// </summary>
     public partial class ProgressWindow : Window
     {
@@ -25,21 +17,72 @@ namespace ExcelMerge.GUI.Views
             InitializeComponent();
         }
 
-        public static void DoWorkWithModal(Action<IProgress<string>> work)
+        public static bool DoWorkWithModal(Action<IProgress<string>, CancellationToken> work)
         {
+            if (work == null) throw new ArgumentNullException("work");
+
             var window = new ProgressWindow();
+            var cancellation = new CancellationTokenSource();
+            var token = cancellation.Token;
+            var worker = new BackgroundWorker();
+            Exception workerError = null;
+            bool abandoned = false;
+            bool completed = false;
 
-            window.Loaded += (_, args) =>
+            window.Closing += (sender, args) =>
             {
-                var worker = new BackgroundWorker();
-                var progress = new Progress<string>(data => window.Message.Content = data);
+                if (completed || !worker.IsBusy) return;
+                // Do not block the user's UI while a large legacy operation is unwinding.
+                // Never publish its eventual result after this dialog has been dismissed.
+                abandoned = true;
+                cancellation.Cancel();
+            };
 
-                worker.DoWork += (s, workerArgs) => work(progress);
-                worker.RunWorkerCompleted += (s, workerArgs) => window.Close();
+            window.Loaded += (sender, args) =>
+            {
+                var progress = new Progress<string>(message =>
+                {
+                    if (!abandoned)
+                        window.Message.Content = message;
+                });
+
+                worker.DoWork += (source, workerArgs) =>
+                {
+                    try
+                    {
+                        token.ThrowIfCancellationRequested();
+                        work(progress, token);
+                        token.ThrowIfCancellationRequested();
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // User cancellation, not an application error.
+                    }
+                    catch (Exception exception)
+                    {
+                        workerError = exception;
+                    }
+                };
+                worker.RunWorkerCompleted += (source, workerArgs) =>
+                {
+                    completed = true;
+                    if (!abandoned && window.IsVisible)
+                        window.Close();
+                };
                 worker.RunWorkerAsync();
             };
 
             window.ShowDialog();
+            if (abandoned || token.IsCancellationRequested)
+            {
+                cancellation.Dispose();
+                return false;
+            }
+
+            cancellation.Dispose();
+            if (workerError != null)
+                ExceptionDispatchInfo.Capture(workerError).Throw();
+            return completed;
         }
     }
 }
