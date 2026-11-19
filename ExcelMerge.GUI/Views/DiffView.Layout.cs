@@ -10,6 +10,31 @@ namespace ExcelMerge.GUI.Views
 {
     public partial class DiffView
     {
+        // Resolve the actual pane even when the command lives in a nested context submenu.
+        private FastGridControl GetLayoutTargetGrid(object sender)
+        {
+            DependencyObject node = sender as DependencyObject;
+            while (node != null)
+            {
+                var contextMenu = node as ContextMenu;
+                if (contextMenu != null)
+                    return contextMenu.PlacementTarget as FastGridControl ?? copyTargetGrid;
+
+                var menuItem = node as MenuItem;
+                if (menuItem != null)
+                {
+                    var owner = ItemsControl.ItemsControlFromItemContainer(menuItem);
+                    if (owner != null && !ReferenceEquals(owner, node))
+                    {
+                        node = owner;
+                        continue;
+                    }
+                }
+                node = LogicalTreeHelper.GetParent(node);
+            }
+            return copyTargetGrid;
+        }
+
         private static List<int> SelectedRows(FastGridControl grid)
         {
             if (grid == null) return new List<int>();
@@ -57,7 +82,7 @@ namespace ExcelMerge.GUI.Views
 
         private void HideSelectedRows_Click(object sender, RoutedEventArgs e)
         {
-            var indices = SelectedRows(GetCopySourceGrid(sender));
+            var indices = SelectedRows(GetLayoutTargetGrid(sender));
             if (indices.Count == 0) return;
 
             var models = BothDiffModels().ToList();
@@ -73,7 +98,7 @@ namespace ExcelMerge.GUI.Views
 
         private void HideSelectedColumns_Click(object sender, RoutedEventArgs e)
         {
-            var indices = SelectedColumns(GetCopySourceGrid(sender));
+            var indices = SelectedColumns(GetLayoutTargetGrid(sender));
             if (indices.Count == 0) return;
 
             var models = BothDiffModels().ToList();
@@ -89,7 +114,7 @@ namespace ExcelMerge.GUI.Views
 
         private void PinSelectedRows_Click(object sender, RoutedEventArgs e)
         {
-            var indices = SelectedRows(GetCopySourceGrid(sender));
+            var indices = SelectedRows(GetLayoutTargetGrid(sender));
             if (indices.Count == 0) return;
             foreach (var model in BothDiffModels()) model.PinRows(indices);
             RefreshViewLayoutStatus();
@@ -97,7 +122,7 @@ namespace ExcelMerge.GUI.Views
 
         private void PinSelectedColumns_Click(object sender, RoutedEventArgs e)
         {
-            var indices = SelectedColumns(GetCopySourceGrid(sender));
+            var indices = SelectedColumns(GetLayoutTargetGrid(sender));
             if (indices.Count == 0) return;
             foreach (var model in BothDiffModels()) model.PinColumns(indices);
             RefreshViewLayoutStatus();
