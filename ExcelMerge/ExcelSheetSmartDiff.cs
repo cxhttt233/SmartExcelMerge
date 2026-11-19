@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using NetDiff;
 
 namespace ExcelMerge
@@ -133,27 +134,33 @@ namespace ExcelMerge
             }
         }
 
-        private static ExcelSheetDiff SmartDiff(ExcelSheet src, ExcelSheet dst, ExcelSheetDiffConfig config)
+        private static ExcelSheetDiff SmartDiff(ExcelSheet src, ExcelSheet dst, ExcelSheetDiffConfig config,
+            CancellationToken cancellation)
         {
+            cancellation.ThrowIfCancellationRequested();
             var headerContext = CreateSmartHeaderContext(src, dst, config);
             config.SrcHeaderIndex = headerContext.SrcHeaderIndex;
             config.DstHeaderIndex = headerContext.DstHeaderIndex;
 
             bool hasColumnAnchor;
+            cancellation.ThrowIfCancellationRequested();
             var columns = CreateSmartColumns(src, dst, config, out hasColumnAnchor);
+            cancellation.ThrowIfCancellationRequested();
             var rowKey = FindSmartRowKey(src, dst, columns, config);
+            cancellation.ThrowIfCancellationRequested();
 
-            if (rowKey == null && !hasColumnAnchor && ShouldFallbackRowsToLegacy(src, dst))
-                return DiffLegacy(src, dst, config);
-
+            // A legacy LCS on two 20k+ row sheets can consume enormous CPU and memory.
+            // Failing with an actionable key-selection message is safer than silently hanging.
             if (rowKey == null && ShouldFallbackRowsToLegacy(src, dst))
-                return DiffLegacy(src, dst, config);
+                throw new InvalidOperationException(
+                    "本次两表记录量较大，未找到能够可靠匹配两侧记录的唯一主键。为避免超长计算和误判增删行，已停止自动比较。请在“主键分析与选择”中选择稳定的编号列或联合主键后重试；若没有可靠编号，请先缩小表格范围。原始文件未修改。");
 
             var rows = rowKey != null
-                ? CreateSmartRowsByKey(src, dst, rowKey, columns, config)
+                ? CreateSmartRowsByKey(src, dst, rowKey, columns, config, cancellation)
                 : CreateSmartRowsByLcs(src, dst, columns);
 
-            return CreateSmartSheetDiff(rows, columns);
+            cancellation.ThrowIfCancellationRequested();
+            return CreateSmartSheetDiff(rows, columns, cancellation);
         }
 
         private static SmartHeaderContext CreateSmartHeaderContext(ExcelSheet src, ExcelSheet dst, ExcelSheetDiffConfig config)
@@ -227,7 +234,8 @@ namespace ExcelMerge
                 .Where(v => !string.IsNullOrEmpty(v));
         }
 
-        private static ExcelSheetDiff CreateSmartSheetDiff(IEnumerable<SmartRow> rows, IList<SmartColumn> columns)
+        private static ExcelSheetDiff CreateSmartSheetDiff(IEnumerable<SmartRow> rows, IList<SmartColumn> columns,
+            CancellationToken cancellation)
         {
             var sheetDiff = new ExcelSheetDiff();
             foreach (var column in columns)
@@ -235,6 +243,7 @@ namespace ExcelMerge
 
             foreach (var smartRow in rows)
             {
+                cancellation.ThrowIfCancellationRequested();
                 var rowStatus = smartRow.Status == ExcelRowStatus.None
                     ? (ExcelRowStatus?)ExcelRowStatus.None
                     : smartRow.Status;
@@ -733,8 +742,10 @@ namespace ExcelMerge
             ExcelSheet dst,
             SmartRowKey rowKey,
             IList<SmartColumn> columns,
-            ExcelSheetDiffConfig config)
+            ExcelSheetDiffConfig config,
+            CancellationToken cancellation)
         {
+            cancellation.ThrowIfCancellationRequested();
             var rows = new List<SmartRow>();
             var pairedSrcRows = new HashSet<int>();
             var pairedDstRows = new HashSet<int>();
@@ -742,12 +753,15 @@ namespace ExcelMerge
             PairPrefixRows(src, dst, config, rows, pairedSrcRows, pairedDstRows);
 
             var srcProfile = BuildRowKeyProfile(src, rowKey.SrcColumnIndex, pairedSrcRows);
+            cancellation.ThrowIfCancellationRequested();
             var dstProfile = BuildRowKeyProfile(dst, rowKey.DstColumnIndex, pairedDstRows);
+            cancellation.ThrowIfCancellationRequested();
             var dstRows = dst.Rows.Values.Where(r => !pairedDstRows.Contains(r.Index)).ToList();
             var matches = new List<SmartRowMatch>();
 
             foreach (var dstRow in dstRows)
             {
+                cancellation.ThrowIfCancellationRequested();
                 var key = NormalizeKey(GetCellValue(dstRow, rowKey.DstColumnIndex));
                 ExcelRow srcRow;
                 if (!string.IsNullOrEmpty(key)
@@ -762,6 +776,7 @@ namespace ExcelMerge
                 }
             }
 
+            cancellation.ThrowIfCancellationRequested();
             PairRowsWithoutReliableKey(
                 src,
                 dst,
@@ -773,8 +788,9 @@ namespace ExcelMerge
                 pairedSrcRows,
                 pairedDstRows);
 
+            cancellation.ThrowIfCancellationRequested();
             var addedDstRows = dst.Rows.Values.Where(r => !pairedDstRows.Contains(r.Index)).ToList();
-            AddDataRowsInSourceOrder(src, rows, pairedSrcRows, matches, addedDstRows);
+            AddDataRowsInSourceOrder(src, rows, pairedSrcRows, matches, addedDstRows, cancellation);
             return rows;
         }
 
@@ -901,16 +917,23 @@ namespace ExcelMerge
             IList<SmartRow> rows,
             HashSet<int> pairedSrcRows,
             IList<SmartRowMatch> matches,
-            IList<ExcelRow> addedDstRows)
+            IList<ExcelRow> addedDstRows,
+            CancellationToken cancellation)
         {
             var matchesBySrcIndex = matches.ToDictionary(m => m.SrcRow.Index, m => m);
             var matchesByDstOrder = matches.OrderBy(m => m.DstRow.Index).ToList();
+            var matchedDstIndices = matchesByDstOrder.Select(m => m.DstRow.Index).ToArray();
             var addedRowsBeforeSrc = new Dictionary<int, List<ExcelRow>>();
             var trailingAddedRows = new List<ExcelRow>();
 
             foreach (var addedDstRow in addedDstRows.OrderBy(r => r.Index))
             {
-                var nextMatch = matchesByDstOrder.FirstOrDefault(m => m.DstRow.Index > addedDstRow.Index);
+                cancellation.ThrowIfCancellationRequested();
+                // The old FirstOrDefault scanned every matching row for every added row (quadratic).
+                // Ordered destination indexes let us find the next anchor in O(log n).
+                int index = Array.BinarySearch(matchedDstIndices, addedDstRow.Index);
+                index = index < 0 ? ~index : index + 1;
+                var nextMatch = index < matchesByDstOrder.Count ? matchesByDstOrder[index] : null;
                 if (nextMatch == null)
                 {
                     trailingAddedRows.Add(addedDstRow);
@@ -929,6 +952,7 @@ namespace ExcelMerge
 
             foreach (var srcRow in src.Rows.Values)
             {
+                cancellation.ThrowIfCancellationRequested();
                 List<ExcelRow> addedRows;
                 if (addedRowsBeforeSrc.TryGetValue(srcRow.Index, out addedRows))
                 {
