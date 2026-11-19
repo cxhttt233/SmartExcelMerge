@@ -165,6 +165,7 @@
     <Compile Include="Exceptions\ExcelMergeException.cs" />
     <Compile Include="Views\DiffViewEvent\DiffViewEventListener.cs" />
     <Compile Include="Models\DiffGridModel.cs" />
+    <Compile Include="Models\ViewLayoutSnapshot.cs" />
     <Compile Include="Models\DiffType.cs" />
     <Compile Include="Settings\ApplicationSetting.cs" />
     <Compile Include="Settings\EMEnvironmentValue.cs" />
@@ -189,6 +190,7 @@
     <Compile Include="Views\KeyAnalysisWindow.cs" />
     <Compile Include="Views\DiffView.KeyAnalysis.cs" />
     <Compile Include="Views\DiffView.Layout.cs" />
+    <Compile Include="Views\RestoreHiddenItemsWindow.cs" />
     <Compile Include="Views\DiffView.xaml.cs">
       <DependentUpon>DiffView.xaml</DependentUpon>
     </Compile>
