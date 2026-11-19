@@ -15,6 +15,7 @@ namespace ExcelMerge
             DstRowHeaderIndex = -1;
             SrcRowHeaderName = string.Empty;
             DstRowHeaderName = string.Empty;
+            ManualRowKeyNames = new List<string>();
         }
 
         public int SrcSheetIndex { get; set; }
