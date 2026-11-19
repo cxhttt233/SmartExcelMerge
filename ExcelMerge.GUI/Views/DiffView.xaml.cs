@@ -527,16 +527,19 @@ namespace ExcelMerge.GUI.Views
             ExcelWorkbook dwb = null;
             var srcPath = SrcPathTextBox.Text;
             var dstPath = DstPathTextBox.Text;
-            ProgressWindow.DoWorkWithModal(progress =>
+            var completed = ProgressWindow.DoWorkWithModal((progress, cancellation) =>
             {
                 progress.Report(Properties.Resources.Msg_ReadingFiles);
 
                 var config = CreateReadConfig();
+                cancellation.ThrowIfCancellationRequested();
                 swb = ExcelWorkbook.Create(srcPath, config);
+                cancellation.ThrowIfCancellationRequested();
                 dwb = ExcelWorkbook.Create(dstPath, config);
+                cancellation.ThrowIfCancellationRequested();
             });
 
-            return Tuple.Create(swb, dwb);
+            return completed && swb != null && dwb != null ? Tuple.Create(swb, dwb) : null;
         }
 
         private Tuple<FileSetting, FileSetting> FindFileSettings(bool isStartup)
@@ -570,13 +573,16 @@ namespace ExcelMerge.GUI.Views
         private ExcelSheetDiff ExecuteDiff(ExcelSheet srcSheet, ExcelSheet dstSheet)
         {
             ExcelSheetDiff diff = null;
-            ProgressWindow.DoWorkWithModal(progress =>
+            var config = diffConfig;
+            var completed = ProgressWindow.DoWorkWithModal((progress, cancellation) =>
             {
                 progress.Report(Properties.Resources.Msg_ExtractingDiff);
-                diff = ExcelSheet.Diff(srcSheet, dstSheet, diffConfig);
+                cancellation.ThrowIfCancellationRequested();
+                diff = ExcelSheet.Diff(srcSheet, dstSheet, config, cancellation);
+                cancellation.ThrowIfCancellationRequested();
             });
 
-            return diff;
+            return completed ? diff : null;
         }
 
         private List<SheetDiffTarget> CreateSheetDiffTargets(
@@ -665,16 +671,17 @@ namespace ExcelMerge.GUI.Views
             if (!targets.Any())
                 return targets;
 
-            ProgressWindow.DoWorkWithModal(progress =>
+            var completed = ProgressWindow.DoWorkWithModal((progress, cancellation) =>
             {
                 foreach (var target in targets)
                 {
+                    cancellation.ThrowIfCancellationRequested();
                     progress.Report(Properties.Resources.Msg_ExtractingDiff + ": " + target.Name);
-                    target.Diff = ExcelSheet.Diff(target.SrcSheet, target.DstSheet, target.Config);
+                    target.Diff = ExcelSheet.Diff(target.SrcSheet, target.DstSheet, target.Config, cancellation);
                 }
             });
 
-            return targets;
+            return completed ? targets : null;
         }
 
         private void UpdateSheetDiffStates(IEnumerable<SheetDiffTarget> targets)
@@ -726,6 +733,7 @@ namespace ExcelMerge.GUI.Views
                 DataGridEventDispatcher.Instance.DispatchPreExecuteDiffEvent(args);
 
                 var workbooks = ReadWorkbooks();
+                if (workbooks == null) return; // User cancelled reading; keep the previous view unchanged.
                 var srcWorkbook = workbooks.Item1;
                 var dstWorkbook = workbooks.Item2;
 
@@ -740,6 +748,7 @@ namespace ExcelMerge.GUI.Views
                 if (scanAllSheets)
                 {
                     var targets = ScanSheetDiffs(srcWorkbook, dstWorkbook, srcFileSetting, dstFileSetting);
+                    if (targets == null) return; // Cancelled scanning sheets.
                     UpdateSheetDiffStates(targets);
 
                     var firstDifferingTarget = targets.FirstOrDefault(target => target.HasDiff);
@@ -776,7 +785,16 @@ namespace ExcelMerge.GUI.Views
                     MessageBox.Show(Properties.Resources.Msg_WarnSize);
 
                 var diff = scannedDiff ?? ExecuteDiff(srcSheet, dstSheet);
+                if (diff == null) return; // Never construct a grid from a cancelled/failed comparison.
                 ApplyDiff(diff, srcFileSetting, dstFileSetting, srcSheetName, dstSheetName);
+            }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Debug.WriteLine(exception);
+                MessageBox.Show(
+                    "本次比较未完成，原始 Excel 未被修改。\n\n" + exception.Message +
+                    "\n\n可以检查主键选择，或减少一次比较的工作表范围后重试。",
+                    "SmartMerge · 比较未完成", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             finally
             {
@@ -791,6 +809,7 @@ namespace ExcelMerge.GUI.Views
             string srcSheetName,
             string dstSheetName)
         {
+            if (diff == null) return;
             RememberCurrentViewLayout();
             SrcDataGrid.Model = new DiffGridModel(diff, DiffType.Source);
             DstDataGrid.IsReadOnly = !CanEditDst();
