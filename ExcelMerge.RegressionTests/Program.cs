@@ -25,6 +25,7 @@ namespace ExcelMerge.RegressionTests
             Run("live composite preview", LiveCompositePreview);
             Run("key analysis window", KeyAnalysisWindowSmoke);
             Run("view hide restore and pin", ViewHideRestoreAndPin);
+            Run("view menu WPF smoke", ViewMenuSmoke);
             Console.WriteLine(failures == 0 ? "All regression tests passed." : failures + " failed.");
             return failures == 0 ? 0 : 1;
         }
@@ -190,6 +191,26 @@ namespace ExcelMerge.RegressionTests
             model.RestoreRowOrder();
             model.RestoreColumnOrder();
             Assert(model.GetFrozenRows(null).Count == 0 && model.GetFrozenColumns(null).Count == 0, "restore default order");
+        }
+
+        private static void ViewMenuSmoke()
+        {
+            var view = new DiffView();
+            var source = view.FindName("SrcDataGrid") as FastWpfGrid.FastGridControl;
+            var destination = view.FindName("DstDataGrid") as FastWpfGrid.FastGridControl;
+            Assert(source != null && destination != null, "both compare panes exist");
+            foreach (var grid in new[] { source, destination })
+            {
+                Assert(grid.ContextMenu != null, "pane has context menu");
+                var layout = grid.ContextMenu.Items.OfType<MenuItem>()
+                    .FirstOrDefault(item => Convert.ToString(item.Header).StartsWith("整理视图"));
+                Assert(layout != null, "discoverable single layout menu");
+                var options = layout.Items.OfType<MenuItem>().Select(item => Convert.ToString(item.Header)).ToList();
+                Assert(options.Contains("隐藏选中行") && options.Contains("隐藏选中列"), "hide actions visible");
+                Assert(options.Contains("选中行置顶并固定") && options.Contains("选中列置左并固定"), "pin actions visible");
+                Assert(options.Contains("取消隐藏全部行") && options.Contains("取消隐藏全部列"), "restore actions visible");
+            }
+            Assert(view.FindName("ViewLayoutStatusTextBlock") is TextBlock, "layout status feedback visible");
         }
 
         private static void KeyAnalysisWindowSmoke()
