@@ -1,10 +1,11 @@
-name: SmartMerge Windows build
+name: Build SmartMerge Req 1+4 Windows EXE
 on:
   push:
     branches: [master]
     paths: ['.github/workflows/build-req14-windows.yml']
+  workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: windows-2022
@@ -12,9 +13,28 @@ jobs:
       - uses: actions/checkout@v4
       - uses: NuGet/setup-nuget@v2
       - uses: microsoft/setup-msbuild@v2
-      - run: nuget restore ExcelMerge.sln
-      - run: msbuild ExcelMerge.GUI\ExcelMerge.GUI.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /m
-      - uses: actions/upload-artifact@v4
+      - name: Verify requirement 1 and 4 source
+        shell: pwsh
+        run: |
+          if (-not (Select-String -Path 'ExcelMerge.GUI/Views/DiffView.xaml.cs' -Pattern 'FormatExcelClipboardCell' -Quiet)) { throw 'Clipboard patch missing' }
+          if (-not (Select-String -Path 'ExcelMerge.GUI/Views/DiffView.xaml' -Pattern 'ShowRemovedRowsCheckBox' -Quiet)) { throw 'Filter patch missing' }
+      - name: Restore NuGet packages
+        run: nuget restore ExcelMerge.sln
+      - name: Compile EXE on Windows
+        run: msbuild ExcelMerge.GUI\ExcelMerge.GUI.csproj /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /m
+      - name: ZIP compiled portable application with DLLs
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'ExcelMerge.GUI/bin/Release/ExcelMerge.GUI.exe')) { throw 'EXE was not compiled' }
+          Compress-Archive -Path 'ExcelMerge.GUI/bin/Release/*' -DestinationPath 'SmartMerge-20261119-req1-4-Windows-EXE.zip' -Force
+      - name: Upload ready-to-run executable archive
+        uses: actions/upload-artifact@v4
         with:
-          name: SmartMerge-Windows-EXE
-          path: ExcelMerge.GUI/bin/Release/
+          name: SmartMerge-20261119-req1-4-Windows-EXE
+          path: SmartMerge-20261119-req1-4-Windows-EXE.zip
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v1.3.5-req1-4 --repo cxhttt233/SmartExcelMerge --target master --title "SmartMerge EXE (2026-11-19) - 复制及差异过滤" --notes "需求1：复制 Excel 兼容的多行双引号 TSV/CSV；需求4：新增、修改、删除行勾选过滤。Windows .NET Framework 4.8 EXE，解压后运行 ExcelMerge.GUI.exe。尚未实现外部 Excel 已筛选区域只粘贴可见单元格。" .\SmartMerge-20261119-req1-4-Windows-EXE.zip
