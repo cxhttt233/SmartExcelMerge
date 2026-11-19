@@ -23,6 +23,10 @@ namespace ExcelMerge.RegressionTests
             // any WPF windows. Production uses a real main window instead.
             var app = ExcelMerge.GUI.App.Instance ?? new ExcelMerge.GUI.App();
             app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            var settings = new ApplicationSetting();
+            settings.Ensure();
+            typeof(ExcelMerge.GUI.App).GetProperty("Setting", BindingFlags.Instance | BindingFlags.Public)
+                .SetValue(app, settings, null);
             Run("auto", Auto);
             Run("manual single", Single);
             Run("composite", Composite);
