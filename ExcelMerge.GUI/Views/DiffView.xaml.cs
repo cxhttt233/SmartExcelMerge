@@ -1253,6 +1253,9 @@ namespace ExcelMerge.GUI.Views
 
         private void ShowOnlyDiffRadioButton_Checked(object sender, RoutedEventArgs e)
         {
+            if (DiffCategoryFilterPanel != null)
+                DiffCategoryFilterPanel.Visibility = Visibility.Visible;
+
             var args = new DiffViewEventArgs<FastGridControl>(null, container, TargetType.First);
             DataGridEventDispatcher.Instance.DispatchDisplayFormatChangeEvent(args, true);
             ApplyDiffCategoryFilters();
