@@ -164,6 +164,7 @@
     <Compile Include="Views\DiffViewEvent\DiffViewEventHandler.cs" />
     <Compile Include="Exceptions\ExcelMergeException.cs" />
     <Compile Include="Views\DiffViewEvent\DiffViewEventListener.cs" />
+    <Compile Include="Diagnostics\RuntimeLog.cs" />
     <Compile Include="Models\DiffGridModel.cs" />
     <Compile Include="Models\ViewLayoutSnapshot.cs" />
     <Compile Include="Models\DiffType.cs" />
