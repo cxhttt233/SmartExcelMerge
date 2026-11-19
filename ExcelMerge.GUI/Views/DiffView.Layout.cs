@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using FastWpfGrid;
@@ -10,6 +11,109 @@ namespace ExcelMerge.GUI.Views
 {
     public partial class DiffView
     {
+        private readonly Dictionary<string, ViewLayoutSnapshot> sessionViewLayouts =
+            new Dictionary<string, ViewLayoutSnapshot>(StringComparer.OrdinalIgnoreCase);
+        private string activeViewLayoutKey;
+
+        private string GetViewLayoutKey(string sourceSheet, string targetSheet)
+        {
+            return Path.GetFullPath(SrcPathTextBox.Text) + "|" + sourceSheet + "|" +
+                   Path.GetFullPath(DstPathTextBox.Text) + "|" + targetSheet;
+        }
+
+        private void RememberCurrentViewLayout()
+        {
+            var model = SrcDataGrid.Model as DiffGridModel;
+            if (model != null && !string.IsNullOrEmpty(activeViewLayoutKey))
+                sessionViewLayouts[activeViewLayoutKey] = model.CaptureLayout();
+        }
+
+        // Never apply saved model indexes to a different row/column alignment.
+        private void RestoreSessionViewLayout(string sourceSheet, string targetSheet)
+        {
+            activeViewLayoutKey = GetViewLayoutKey(sourceSheet, targetSheet);
+            ViewLayoutSnapshot snapshot;
+            if (!sessionViewLayouts.TryGetValue(activeViewLayoutKey, out snapshot))
+                return;
+
+            var models = BothDiffModels().ToList();
+            if (models.Count != 2 || !models.All(model => model.TryRestoreLayout(snapshot)))
+            {
+                sessionViewLayouts.Remove(activeViewLayoutKey);
+                if (ViewLayoutStatusTextBlock != null)
+                    ViewLayoutStatusTextBlock.ToolTip = "记录对齐结构发生变化，旧的行列隐藏设置已自动丢弃，避免隐藏错误记录。";
+            }
+        }
+
+        private static string ShortenPreview(string value)
+        {
+            value = (value ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
+            return value.Length > 34 ? value.Substring(0, 34) + "…" : value;
+        }
+
+        private static string ExcelColumnLetters(int index)
+        {
+            var result = "";
+            for (int x = index + 1; x > 0; x = (x - 1) / 26)
+                result = (char)('A' + (x - 1) % 26) + result;
+            return result;
+        }
+
+        private void RestoreSelectedHiddenRows_Click(object sender, RoutedEventArgs e)
+        {
+            var model = SrcDataGrid.Model as DiffGridModel;
+            if (model == null) return;
+
+            var entries = model.GetManuallyHiddenRows().Select(i => new HiddenItemOption
+            {
+                Index = i,
+                Label = string.Format("第 {0} 行  ·  {1}", i + 1,
+                    ShortenPreview(string.Join(" | ", Enumerable.Range(0, Math.Min(3, model.ColumnCount))
+                        .Select(c => model.GetCellText(i, c)))))
+            }).ToList();
+            if (entries.Count == 0)
+            {
+                MessageBox.Show("没有手动隐藏的行。", "SmartMerge");
+                return;
+            }
+
+            var dialog = new RestoreHiddenItemsWindow("行", entries) { Owner = Window.GetWindow(this) };
+            if (dialog.ShowDialog() != true) return;
+            foreach (var item in BothDiffModels())
+            {
+                if (dialog.RestoreAll) item.RestoreUserRows();
+                else item.RestoreSelectedRows(dialog.SelectedIndices);
+            }
+            RefreshViewLayoutStatus();
+        }
+
+        private void RestoreSelectedHiddenColumns_Click(object sender, RoutedEventArgs e)
+        {
+            var model = SrcDataGrid.Model as DiffGridModel;
+            if (model == null) return;
+
+            var entries = model.GetManuallyHiddenColumns().Select(i => new HiddenItemOption
+            {
+                Index = i,
+                Label = string.Format("{0} 列  ·  {1}", ExcelColumnLetters(i),
+                    ShortenPreview(model.GetColumnHeaderText(i)))
+            }).ToList();
+            if (entries.Count == 0)
+            {
+                MessageBox.Show("没有手动隐藏的列。", "SmartMerge");
+                return;
+            }
+
+            var dialog = new RestoreHiddenItemsWindow("列", entries) { Owner = Window.GetWindow(this) };
+            if (dialog.ShowDialog() != true) return;
+            foreach (var item in BothDiffModels())
+            {
+                if (dialog.RestoreAll) item.RestoreUserColumns();
+                else item.RestoreSelectedColumns(dialog.SelectedIndices);
+            }
+            RefreshViewLayoutStatus();
+        }
+
         // Resolve the actual pane even when the command lives in a nested context submenu.
         private FastGridControl GetLayoutTargetGrid(object sender)
         {
@@ -64,12 +168,15 @@ namespace ExcelMerge.GUI.Views
                 model.PinnedRowCount == 0 && model.PinnedColumnCount == 0)
             {
                 ViewLayoutStatusTextBlock.Text = string.Empty;
+                ViewLayoutStatusTextBlock.ToolTip = "视图调整只影响当前会话中的显示，不会修改源文件。";
                 return;
             }
             ViewLayoutStatusTextBlock.Text = string.Format(
                 "视图调整：隐藏 {0} 行 / {1} 列，置顶 {2} 行 / 置左 {3} 列",
                 model.ManuallyHiddenRowCount, model.ManuallyHiddenColumnCount,
                 model.PinnedRowCount, model.PinnedColumnCount);
+            ViewLayoutStatusTextBlock.ToolTip =
+                "本次会话可在同一对文件和工作表重新比较后恢复视图；记录位置变化时为了安全会自动重置。所有设置只影响显示。";
         }
 
         private IEnumerable<DiffGridModel> BothDiffModels()
