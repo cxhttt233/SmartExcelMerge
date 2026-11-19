@@ -138,14 +138,17 @@ namespace ExcelMerge
             CancellationToken cancellation)
         {
             cancellation.ThrowIfCancellationRequested();
+            ComparisonTelemetry.Report("smart.headers");
             var headerContext = CreateSmartHeaderContext(src, dst, config);
             config.SrcHeaderIndex = headerContext.SrcHeaderIndex;
             config.DstHeaderIndex = headerContext.DstHeaderIndex;
 
             bool hasColumnAnchor;
             cancellation.ThrowIfCancellationRequested();
+            ComparisonTelemetry.Report("smart.columns");
             var columns = CreateSmartColumns(src, dst, config, out hasColumnAnchor);
             cancellation.ThrowIfCancellationRequested();
+            ComparisonTelemetry.Report("smart.find_key columns=" + columns.Count);
             var rowKey = FindSmartRowKey(src, dst, columns, config);
             cancellation.ThrowIfCancellationRequested();
 
@@ -155,12 +158,18 @@ namespace ExcelMerge
                 throw new InvalidOperationException(
                     "本次两表记录量较大，未找到能够可靠匹配两侧记录的唯一主键。为避免超长计算和误判增删行，已停止自动比较。请在“主键分析与选择”中选择稳定的编号列或联合主键后重试；若没有可靠编号，请先缩小表格范围。原始文件未修改。");
 
+            ComparisonTelemetry.Report(rowKey == null
+                ? "smart.rows_lcs"
+                : "smart.rows_keyed");
             var rows = rowKey != null
                 ? CreateSmartRowsByKey(src, dst, rowKey, columns, config, cancellation)
                 : CreateSmartRowsByLcs(src, dst, columns);
 
             cancellation.ThrowIfCancellationRequested();
-            return CreateSmartSheetDiff(rows, columns, cancellation);
+            ComparisonTelemetry.Report("smart.build_diff");
+            var result = CreateSmartSheetDiff(rows, columns, cancellation);
+            ComparisonTelemetry.Report("smart.done");
+            return result;
         }
 
         private static SmartHeaderContext CreateSmartHeaderContext(ExcelSheet src, ExcelSheet dst, ExcelSheetDiffConfig config)
