@@ -268,6 +268,9 @@ namespace ExcelMerge.RegressionTests
 
         private static void ProgressCancelSmoke()
         {
+            // Tests create dialogs without the real main window. Prevent WPF from shutting
+            // down the test application when the first modal progress dialog closes.
+            Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             var dispatcher = Dispatcher.CurrentDispatcher;
             var completed = ProgressWindow.DoWorkWithModal((progress, cancellation) =>
             {
