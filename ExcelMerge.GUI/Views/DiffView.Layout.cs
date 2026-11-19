@@ -18,7 +18,7 @@ namespace ExcelMerge.GUI.Views
             RuntimeLog.Write("LOG_OPEN", "User opened diagnostics folder");
             try
             {
-                System.Diagnostics.Process.Start("explorer.exe", "/select,\\"" + RuntimeLog.CurrentLogFile + "\\"");
+                System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + RuntimeLog.CurrentLogFile + "\"");
             }
             catch
             {
