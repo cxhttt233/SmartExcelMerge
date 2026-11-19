@@ -28,6 +28,7 @@ namespace ExcelMerge.RegressionTests
             Run("view menu WPF smoke", ViewMenuSmoke);
             Run("selective unhide and session safety", SelectiveRestoreAndSessionSafety);
             Run("selective restore picker WPF smoke", RestoreHiddenItemsPickerSmoke);
+            Run("view right click hide and restore interaction", ViewContextMenuInteraction);
             Console.WriteLine(failures == 0 ? "All regression tests passed." : failures + " failed.");
             return failures == 0 ? 0 : 1;
         }
@@ -257,6 +258,41 @@ namespace ExcelMerge.RegressionTests
             Assert(buttons.Any(b => Equals(b.Content, "全部恢复")), "restore all button");
             Assert(buttons.Any(b => Equals(b.Content, "取消")), "safe cancel");
             picker.Close();
+        }
+
+        private static void ViewContextMenuInteraction()
+        {
+            RowKeySelectionRuntime.Clear();
+            var diff = ExcelSheet.Diff(
+                Sheet(new[] { "ID", "Name" }, new[] { "1", "A" }, new[] { "2", "B" }),
+                Sheet(new[] { "ID", "Name" }, new[] { "1", "A" }, new[] { "2", "B2" }),
+                Config());
+
+            var view = new DiffView();
+            var source = view.FindName("SrcDataGrid") as FastWpfGrid.FastGridControl;
+            var destination = view.FindName("DstDataGrid") as FastWpfGrid.FastGridControl;
+            Assert(source != null && destination != null, "paired grids");
+            source.Model = new DiffGridModel(diff, DiffType.Source);
+            destination.Model = new DiffGridModel(diff, DiffType.Dest);
+            source.ContextMenu.PlacementTarget = source;
+            source.CurrentModelCell = new FastWpfGrid.FastGridCellAddress(1, 0);
+
+            var layout = source.ContextMenu.Items.OfType<MenuItem>()
+                .First(item => Convert.ToString(item.Header).StartsWith("整理视图"));
+            var hide = layout.Items.OfType<MenuItem>()
+                .First(item => Equals(item.Header, "隐藏选中行"));
+            hide.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, hide));
+
+            var srcModel = source.Model as DiffGridModel;
+            var dstModel = destination.Model as DiffGridModel;
+            Assert(srcModel.GetHiddenRows(source).Contains(1), "context menu hides source row");
+            Assert(dstModel.GetHiddenRows(destination).Contains(1), "context menu keeps destination aligned");
+
+            var unhide = layout.Items.OfType<MenuItem>()
+                .First(item => Equals(item.Header, "取消隐藏全部行"));
+            unhide.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, unhide));
+            Assert(srcModel.GetHiddenRows(source).Count == 0, "context menu restores source row");
+            Assert(dstModel.GetHiddenRows(destination).Count == 0, "context menu restores destination row");
         }
 
         private static void ViewMenuSmoke()
