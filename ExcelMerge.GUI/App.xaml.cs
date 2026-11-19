@@ -41,15 +41,15 @@ namespace ExcelMerge.GUI
         protected override void OnStartup(StartupEventArgs e)
         {
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
-            AppDomain.CurrentDomain.ProcessExit += (sender, args) =>
+            AppDomain.CurrentDomain.ProcessExit += (sender, exitEvent) =>
                 RuntimeLog.Write("PROCESS_EXIT", "OS process exit event");
-            DispatcherUnhandledException += (sender, args) =>
+            DispatcherUnhandledException += (sender, dispatchEvent) =>
             {
-                RuntimeLog.Exception("WPF DispatcherUnhandledException", args.Exception);
+                RuntimeLog.Exception("WPF DispatcherUnhandledException", dispatchEvent.Exception);
                 // Do not pretend a failed UI operation succeeded.
             };
-            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (sender, args) =>
-                RuntimeLog.Exception("UnobservedTaskException", args.Exception);
+            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (sender, taskEvent) =>
+                RuntimeLog.Exception("UnobservedTaskException", taskEvent.Exception);
             ComparisonTelemetry.StageChanged += RuntimeLog.Stage;
             RuntimeLog.Write("APP_STARTUP", "Main window startup");
 
