@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
+using ExcelMerge.GUI.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using FastWpfGrid;
@@ -11,6 +12,20 @@ namespace ExcelMerge.GUI.Views
 {
     public partial class DiffView
     {
+        private void OpenDiagnosticLog_Click(object sender, RoutedEventArgs e)
+        {
+            var folder = RuntimeLog.DirectoryPath;
+            RuntimeLog.Write("LOG_OPEN", "User opened diagnostics folder");
+            try
+            {
+                System.Diagnostics.Process.Start("explorer.exe", "/select,\\"" + RuntimeLog.CurrentLogFile + "\\"");
+            }
+            catch
+            {
+                MessageBox.Show("诊断日志位于：\\n" + folder, "SmartMerge · 诊断日志");
+            }
+        }
+
         private readonly Dictionary<string, ViewLayoutSnapshot> sessionViewLayouts =
             new Dictionary<string, ViewLayoutSnapshot>(StringComparer.OrdinalIgnoreCase);
         private string activeViewLayoutKey;
