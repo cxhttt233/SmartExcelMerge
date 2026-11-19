@@ -286,17 +286,23 @@ namespace ExcelMerge.RegressionTests
         private static void BackgroundErrorSmoke()
         {
             bool surfaced = false;
+            bool completed = false;
+            Exception caught = null;
             try
             {
-                ProgressWindow.DoWorkWithModal((progress, cancellation) =>
+                completed = ProgressWindow.DoWorkWithModal((progress, cancellation) =>
                 {
                     throw new InvalidOperationException("intentional test error");
                 });
             }
-            catch (InvalidOperationException ex)
+            catch (Exception ex)
             {
-                surfaced = ex.Message == "intentional test error";
+                caught = ex;
+                surfaced = ex is InvalidOperationException
+                    && ex.Message == "intentional test error";
             }
+            Console.WriteLine("[TRACE] BackgroundErrorSmoke completed=" + completed
+                + ", exception=" + (caught == null ? "null" : caught.ToString()));
             Assert(surfaced, "background failures are not silently swallowed");
         }
 
