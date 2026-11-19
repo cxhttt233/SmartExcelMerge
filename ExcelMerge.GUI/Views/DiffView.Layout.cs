@@ -14,6 +14,7 @@ namespace ExcelMerge.GUI.Views
         private readonly Dictionary<string, ViewLayoutSnapshot> sessionViewLayouts =
             new Dictionary<string, ViewLayoutSnapshot>(StringComparer.OrdinalIgnoreCase);
         private string activeViewLayoutKey;
+        private bool viewLayoutWasReset;
 
         private string GetViewLayoutKey(string sourceSheet, string targetSheet)
         {
@@ -31,6 +32,7 @@ namespace ExcelMerge.GUI.Views
         // Never apply saved model indexes to a different row/column alignment.
         private void RestoreSessionViewLayout(string sourceSheet, string targetSheet)
         {
+            viewLayoutWasReset = false;
             activeViewLayoutKey = GetViewLayoutKey(sourceSheet, targetSheet);
             ViewLayoutSnapshot snapshot;
             if (!sessionViewLayouts.TryGetValue(activeViewLayoutKey, out snapshot))
@@ -40,8 +42,7 @@ namespace ExcelMerge.GUI.Views
             if (models.Count != 2 || !models.All(model => model.TryRestoreLayout(snapshot)))
             {
                 sessionViewLayouts.Remove(activeViewLayoutKey);
-                if (ViewLayoutStatusTextBlock != null)
-                    ViewLayoutStatusTextBlock.ToolTip = "记录对齐结构发生变化，旧的行列隐藏设置已自动丢弃，避免隐藏错误记录。";
+                viewLayoutWasReset = true;
             }
         }
 
@@ -167,8 +168,12 @@ namespace ExcelMerge.GUI.Views
             if (model.ManuallyHiddenRowCount == 0 && model.ManuallyHiddenColumnCount == 0 &&
                 model.PinnedRowCount == 0 && model.PinnedColumnCount == 0)
             {
-                ViewLayoutStatusTextBlock.Text = string.Empty;
-                ViewLayoutStatusTextBlock.ToolTip = "视图调整只影响当前会话中的显示，不会修改源文件。";
+                ViewLayoutStatusTextBlock.Text = viewLayoutWasReset
+                    ? "行列对应关系变化，已安全重置布局" : string.Empty;
+                ViewLayoutStatusTextBlock.ToolTip = viewLayoutWasReset
+                    ? "两表记录的对齐关系发生变化。为了避免隐藏或固定错误记录，已舍弃本次会话的旧视图安排。"
+                    : "视图调整只影响当前会话中的显示，不会修改源文件。";
+                viewLayoutWasReset = false;
                 return;
             }
             ViewLayoutStatusTextBlock.Text = string.Format(
