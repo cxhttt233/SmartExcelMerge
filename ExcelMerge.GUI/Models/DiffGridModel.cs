@@ -595,22 +595,34 @@ namespace ExcelMerge.GUI.Models
 
         public void HideEqualRows()
         {
+            HideEqualRows(true, true, true);
+        }
+
+        public void HideEqualRows(bool showAdded, bool showModified, bool showRemoved)
+        {
             rowIndexMap.Clear();
-            var equalRows = new HashSet<int>();
+            var hiddenRows = new HashSet<int>();
+            var visibleIndex = 0;
             var originalIndex = 0;
-            var index = 0;
 
             foreach (var r in SheetDiff.Rows)
             {
-                if (!r.Value.Cells.All(c => c.Value.Status == ExcelCellStatus.None))
-                    rowIndexMap.Add(index++, originalIndex);
+                var row = r.Value;
+                // Classify entire rows first; changed cells in ordinary rows are modifications.
+                bool added = row.IsAdded();
+                bool removed = row.IsRemoved();
+                bool modified = row.IsModified() || row.Cells.Any(c => c.Value.Status == ExcelCellStatus.Modified);
+                bool visible = added ? showAdded : removed ? showRemoved : modified && showModified;
+
+                if (visible)
+                    rowIndexMap.Add(visibleIndex++, originalIndex);
                 else
-                    equalRows.Add(r.Key);
+                    hiddenRows.Add(r.Key);
 
                 originalIndex++;
             }
 
-            SetRowArrange(equalRows, new HashSet<int>());
+            SetRowArrange(hiddenRows, new HashSet<int>());
         }
 
         public void ShowEqualRows()
