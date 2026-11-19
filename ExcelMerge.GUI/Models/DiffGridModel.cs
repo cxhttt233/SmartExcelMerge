@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Text;
 using System.Windows.Media;
 using FastWpfGrid;
 
@@ -25,6 +26,85 @@ namespace ExcelMerge.GUI.Models
         private readonly HashSet<int> pinnedRows = new HashSet<int>();
         private readonly HashSet<int> pinnedColumns = new HashSet<int>();
         private readonly HashSet<int> diffHiddenRows = new HashSet<int>();
+
+        public IEnumerable<int> GetManuallyHiddenRows()
+        {
+            return manuallyHiddenRows.OrderBy(i => i).ToArray();
+        }
+
+        public IEnumerable<int> GetManuallyHiddenColumns()
+        {
+            return manuallyHiddenColumns.OrderBy(i => i).ToArray();
+        }
+
+        public void RestoreSelectedRows(IEnumerable<int> indices)
+        {
+            manuallyHiddenRows.ExceptWith(indices);
+            RefreshRowArrangement();
+        }
+
+        public void RestoreSelectedColumns(IEnumerable<int> indices)
+        {
+            manuallyHiddenColumns.ExceptWith(indices);
+            RefreshColumnArrangement();
+        }
+
+        // Positions are comparison model positions, not editable Excel row/column numbers.
+        // A layout is restored only when the aligned source/destination record map is identical.
+        public string GetLayoutSignature()
+        {
+            var signature = new StringBuilder();
+            signature.Append(RowCount).Append('/').Append(ColumnCount).Append('|');
+            foreach (var row in SheetDiff.Rows)
+            {
+                var first = row.Value.Cells.Values.FirstOrDefault();
+                signature.Append(row.Key).Append(':');
+                if (first != null)
+                {
+                    signature.Append(first.SrcCell == null ? -1 : first.SrcCell.OriginalRowIndex)
+                             .Append('/')
+                             .Append(first.DstCell == null ? -1 : first.DstCell.OriginalRowIndex);
+                }
+                // Include the first two source-cell values to detect shifted names/record identity.
+                foreach (var cell in row.Value.Cells.Values.Take(2))
+                {
+                    var v = cell.SrcCell == null ? "" : cell.SrcCell.Value ?? "";
+                    signature.Append(':').Append(v.Length).Append('#').Append(v);
+                }
+                signature.Append(';');
+            }
+            return signature.ToString();
+        }
+
+        public ViewLayoutSnapshot CaptureLayout()
+        {
+            return new ViewLayoutSnapshot
+            {
+                Signature = GetLayoutSignature(),
+                HiddenRows = GetManuallyHiddenRows().ToArray(),
+                HiddenColumns = GetManuallyHiddenColumns().ToArray(),
+                PinnedRows = pinnedRows.OrderBy(i => i).ToArray(),
+                PinnedColumns = pinnedColumns.OrderBy(i => i).ToArray()
+            };
+        }
+
+        public bool TryRestoreLayout(ViewLayoutSnapshot snapshot)
+        {
+            if (snapshot == null || snapshot.Signature != GetLayoutSignature())
+                return false;
+
+            manuallyHiddenRows.Clear();
+            manuallyHiddenColumns.Clear();
+            pinnedRows.Clear();
+            pinnedColumns.Clear();
+            manuallyHiddenRows.UnionWith(snapshot.HiddenRows.Where(i => i >= 0 && i < RowCount));
+            manuallyHiddenColumns.UnionWith(snapshot.HiddenColumns.Where(i => i >= 0 && i < ColumnCount));
+            pinnedRows.UnionWith(snapshot.PinnedRows.Where(i => i >= 0 && i < RowCount));
+            pinnedColumns.UnionWith(snapshot.PinnedColumns.Where(i => i >= 0 && i < ColumnCount));
+            RefreshRowArrangement();
+            RefreshColumnArrangement();
+            return true;
+        }
 
         public int ManuallyHiddenRowCount { get { return manuallyHiddenRows.Count; } }
         public int ManuallyHiddenColumnCount { get { return manuallyHiddenColumns.Count; } }
