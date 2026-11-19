@@ -26,6 +26,8 @@ namespace ExcelMerge.RegressionTests
             Run("key analysis window", KeyAnalysisWindowSmoke);
             Run("view hide restore and pin", ViewHideRestoreAndPin);
             Run("view menu WPF smoke", ViewMenuSmoke);
+            Run("selective unhide and session safety", SelectiveRestoreAndSessionSafety);
+            Run("selective restore picker WPF smoke", RestoreHiddenItemsPickerSmoke);
             Console.WriteLine(failures == 0 ? "All regression tests passed." : failures + " failed.");
             return failures == 0 ? 0 : 1;
         }
@@ -193,6 +195,70 @@ namespace ExcelMerge.RegressionTests
             Assert(model.GetFrozenRows(null).Count == 0 && model.GetFrozenColumns(null).Count == 0, "restore default order");
         }
 
+        private static void SelectiveRestoreAndSessionSafety()
+        {
+            RowKeySelectionRuntime.Clear();
+            var diff = ExcelSheet.Diff(
+                Sheet(new[] { "ID", "Name", "Value" }, new[] { "1", "A", "10" },
+                    new[] { "2", "B", "20" }, new[] { "3", "C", "30" }),
+                Sheet(new[] { "ID", "Name", "Value" }, new[] { "1", "A", "11" },
+                    new[] { "2", "B", "20" }, new[] { "3", "C", "31" }),
+                Config());
+
+            var original = new DiffGridModel(diff, DiffType.Source);
+            Assert(original.HideUserRows(new[] { 1, 2 }), "hide two rows");
+            Assert(original.HideUserColumns(new[] { 1, 2 }), "hide two columns");
+            original.RestoreSelectedRows(new[] { 1 });
+            original.RestoreSelectedColumns(new[] { 1 });
+            Assert(!original.GetHiddenRows(null).Contains(1) && original.GetHiddenRows(null).Contains(2),
+                "selective row restore does not unhide other rows");
+            Assert(!original.GetHiddenColumns(null).Contains(1) && original.GetHiddenColumns(null).Contains(2),
+                "selective column restore does not unhide other columns");
+            original.PinRows(new[] { 3 });
+            original.PinColumns(new[] { 1 });
+            var snapshot = original.CaptureLayout();
+            Assert(snapshot.HiddenRows.SequenceEqual(new[] { 2 }), "capture only remaining hidden row");
+            Assert(snapshot.HiddenColumns.SequenceEqual(new[] { 2 }), "capture only remaining hidden column");
+
+            var restored = new DiffGridModel(diff, DiffType.Dest);
+            Assert(restored.TryRestoreLayout(snapshot), "restore to same aligned grid");
+            Assert(restored.GetHiddenRows(null).Contains(2) && restored.GetHiddenColumns(null).Contains(2),
+                "restored hide state");
+            Assert(restored.GetFrozenRows(null).Contains(3) && restored.GetFrozenColumns(null).Contains(1),
+                "restored pin state");
+            restored.HideEqualRows(false, true, false);
+            restored.ShowEqualRows();
+            Assert(restored.GetHiddenRows(null).Contains(2), "manual hidden row survives diff toggle");
+
+            var changed = ExcelSheet.Diff(
+                Sheet(new[] { "ID", "Name", "Value" }, new[] { "1", "A", "10" },
+                    new[] { "2", "B", "20" }, new[] { "3", "Different", "30" }),
+                Sheet(new[] { "ID", "Name", "Value" }, new[] { "1", "A", "11" },
+                    new[] { "2", "B", "20" }, new[] { "3", "Different", "31" }),
+                Config());
+            var fresh = new DiffGridModel(changed, DiffType.Source);
+            Assert(!fresh.TryRestoreLayout(snapshot), "do not restore layout when record identity changes");
+            Assert(fresh.GetHiddenRows(null).Count == 0 && fresh.GetHiddenColumns(null).Count == 0,
+                "unsafe layout was not applied");
+        }
+
+        private static void RestoreHiddenItemsPickerSmoke()
+        {
+            var picker = new RestoreHiddenItemsWindow("行", new[]
+            {
+                new HiddenItemOption { Index = 1, Label = "第 2 行  ·  河南水库" },
+                new HiddenItemOption { Index = 3, Label = "第 4 行  ·  甘肃工程" }
+            });
+            Assert(picker.Title.Contains("恢复隐藏的行"), "picker is clearly labeled");
+            var lists = LogicalDescendants<ListBox>(picker).ToList();
+            Assert(lists.Count == 1 && lists[0].Items.Count == 2, "two items shown");
+            var buttons = LogicalDescendants<Button>(picker).ToList();
+            Assert(buttons.Any(b => Equals(b.Content, "恢复选中")), "selective restore button");
+            Assert(buttons.Any(b => Equals(b.Content, "全部恢复")), "restore all button");
+            Assert(buttons.Any(b => Equals(b.Content, "取消")), "safe cancel");
+            picker.Close();
+        }
+
         private static void ViewMenuSmoke()
         {
             var view = new DiffView();
@@ -209,6 +275,7 @@ namespace ExcelMerge.RegressionTests
                 Assert(options.Contains("隐藏选中行") && options.Contains("隐藏选中列"), "hide actions visible");
                 Assert(options.Contains("选中行置顶并固定") && options.Contains("选中列置左并固定"), "pin actions visible");
                 Assert(options.Contains("取消隐藏全部行") && options.Contains("取消隐藏全部列"), "restore actions visible");
+                Assert(options.Contains("恢复指定隐藏行…") && options.Contains("恢复指定隐藏列…"), "precise restore actions visible");
             }
             Assert(view.FindName("ViewLayoutStatusTextBlock") is TextBlock, "layout status feedback visible");
         }
