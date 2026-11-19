@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Windows;
+using ExcelMerge.GUI.Diagnostics;
 
 namespace ExcelMerge.GUI.Views
 {
@@ -19,6 +20,7 @@ namespace ExcelMerge.GUI.Views
 
         private void CancelProgress_Click(object sender, RoutedEventArgs e)
         {
+            RuntimeLog.Write("CANCEL_BUTTON", "User clicked cancel comparison");
             Close();
         }
 
@@ -26,6 +28,7 @@ namespace ExcelMerge.GUI.Views
         {
             if (work == null) throw new ArgumentNullException("work");
 
+            RuntimeLog.Write("PROGRESS_BEGIN", "Background progress dialog created");
             var window = new ProgressWindow();
             var cancellation = new CancellationTokenSource();
             var token = cancellation.Token;
@@ -40,6 +43,7 @@ namespace ExcelMerge.GUI.Views
                 // Do not block the user's UI while a large legacy operation is unwinding.
                 // Never publish its eventual result after this dialog has been dismissed.
                 abandoned = true;
+                RuntimeLog.Write("CANCEL_REQUEST", "Progress window closed, requesting background cancellation");
                 cancellation.Cancel();
             };
 
@@ -61,6 +65,12 @@ namespace ExcelMerge.GUI.Views
                 {
                     // BackgroundWorker marshals exceptions to Error on the UI thread.
                     workerError = workerArgs.Error;
+                    if (workerError != null)
+                        RuntimeLog.Exception("PROGRESS_WORKER", workerError);
+                    else if (workerArgs.Cancelled)
+                        RuntimeLog.Write("PROGRESS_WORKER_CANCELLED", "Cancellation observed by worker");
+                    else
+                        RuntimeLog.Write("PROGRESS_WORKER_DONE", "Background worker completed");
                     completed = true;
                     if (!abandoned && window.IsVisible)
                         window.Close();
@@ -71,6 +81,7 @@ namespace ExcelMerge.GUI.Views
             window.ShowDialog();
             if (abandoned || token.IsCancellationRequested)
             {
+                RuntimeLog.Write("PROGRESS_CANCEL_RETURN", "No result applied; UI returned while background may still be unwinding");
                 cancellation.Dispose();
                 return false;
             }
@@ -78,6 +89,7 @@ namespace ExcelMerge.GUI.Views
             cancellation.Dispose();
             if (workerError != null)
                 ExceptionDispatchInfo.Capture(workerError).Throw();
+            RuntimeLog.Write("PROGRESS_END", "completed=" + completed);
             return completed;
         }
     }
